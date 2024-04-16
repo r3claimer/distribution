@@ -24,8 +24,12 @@ case ${DEVICE} in
     PKG_URL="https://github.com/hbiyik/linux-rockchip/archive/${PKG_VERSION}.tar.gz"
     PKG_GIT_CLONE_BRANCH="rk-6.1-rkr1-panthor-v6"
   ;;
+  RK3566*|S922X)
+    PKG_VERSION="6.9-rc3"
+	PKG_URL="https://git.kernel.org/torvalds/t/linux-${PKG_VERSION}.tar.gz"
+  ;;
   *)
-    PKG_VERSION="6.8.4"
+    PKG_VERSION="6.8.5"
     PKG_URL="${PKG_SITE}/pub/linux/kernel/v6.x/${PKG_NAME}-${PKG_VERSION}.tar.xz"
   ;;
 esac
