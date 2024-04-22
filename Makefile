@@ -119,16 +119,16 @@ docker-%: INTERACTIVE=$(shell [ -t 0 ] && echo "-it")
 docker-%: COMMAND=make $*
 
 # Get .env file ready
-docker-%: $(shell env | grep "=" > .env)
+docker-%: $(shell ./scripts/get_env > .env)
 
 # If the user issues a `make docker-shell` just start up bash as the shell to run commands
 docker-shell: COMMAND=bash
 
-# Command: builds and pushes a hybrid docker image to dockerhub
-# You must login with: docker login --username <username> and provide either a password or token (from user settings -> security in dockerhub) before this will work.  The build user must also be a member of the "docker" group.
+# Command: builds and saves a docker builder image locally.
+# The build user must also be a member of the "docker" group.
 docker-image-build:
 	$(DOCKER_CMD) buildx create --use
-	$(DOCKER_CMD) buildx build --tag $(DOCKER_IMAGE) --platform linux/amd64,linux/arm64 --push .
+	$(DOCKER_CMD) buildx build --tag $(DOCKER_IMAGE) --platform $(shell if [ "$(uname -m)" = "aarch64" ]; then echo "linux/arm64"; else echo "linux/amd64"; fi) --load .
 
 # Command: pulls latest docker image from dockerhub.  This will *replace* locally built version.
 docker-image-pull:
