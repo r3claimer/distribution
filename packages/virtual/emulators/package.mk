@@ -378,7 +378,7 @@ makeinstall_target() {
   ### iD Software game engines
   add_emu_core idtech retroarch idtech
   add_es_system idtech
-  install_script "Generate id Tech Launchers.sh"
+  install_script "Create id Tech Launchers.sh"
 
   ### Apple Macintosh Plus
   add_emu_core macintosh retroarch minivmac true
@@ -994,6 +994,7 @@ makeinstall_target() {
   ;;
     RK358*)
       add_emu_core saturn retroarch beetle_saturn false
+      add_emu_core saturn mednafen ss false
   ;;
   esac
   add_es_system saturn
@@ -1001,12 +1002,10 @@ makeinstall_target() {
   ### Sega ST-V
   case ${DEVICE} in
     RK358*)
-      add_emu_core st-v retroarch beetle_saturn true
       add_emu_core st-v mednafen ss false
     ;;
     AMD64)
       add_emu_core saturn kronos kronos-sa true
-      add_emu_core st-v retroarch beetle_saturn false
       add_emu_core st-v retroarch kronos false
       add_emu_core st-v mednafen ss false
     ;;
