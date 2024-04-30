@@ -10,11 +10,6 @@ PKG_TOOLCHAIN="meson"
 PKG_PATCH_DIRS+=" ${DEVICE}"
 
 case ${DEVICE} in
-  RK3588*)
-	PKG_VERSION="832c3c7117e4366e415ded92a6f07ec203fd9233"
-	PKG_SITE="https://github.com/ROCKNIX/mesa-panfork"
-	PKG_URL="${PKG_SITE}.git"
-  ;;
   RK3*|S922X)
     if [ "${DEVICE}" = "S922X" -a "${USE_MALI}" != "no" ]; then
       PKG_VERSION="24.0.5"
@@ -22,7 +17,7 @@ case ${DEVICE} in
 	    PKG_URL="https://gitlab.freedesktop.org/mesa/mesa/-/archive/mesa-${PKG_VERSION}/mesa-mesa-${PKG_VERSION}.tar.gz"
     else
       #Using upstream dev for panfrost
-	    PKG_VERSION="0b518681938c9eeb9133972a66a91fc4ff6cf2a1"
+	    PKG_VERSION="fe4ebace7902e2686a9ab888725c9fa64e17ee3c"
 	    PKG_SITE="https://gitlab.freedesktop.org/mesa/mesa"
 	    PKG_URL="${PKG_SITE}.git"
 	    PKG_PATCH_DIRS+=" panfrost"
