@@ -1,0 +1,2090 @@
+From 165544b0e1e0235305892e12a971bf6db7016b7f Mon Sep 17 00:00:00 2001
+From: Danil Zagoskin <z@gosk.in>
+Date: Tue, 16 Apr 2024 02:28:56 +0300
+Subject: [PATCH 1/6] RK3566: build mali-bifrost driver
+
+---
+ .../devices/RK3566/linux/linux.aarch64.conf   |  2 +-
+ projects/Rockchip/devices/RK3566/options      |  1 +
+ .../Rockchip/packages/mali-bifrost/package.mk | 26 ++++++++++++++++
+ .../patches/001-single-regulator.patch        | 31 +++++++++++++++++++
+ .../002-lowercase-interrupts-first.patch      | 30 ++++++++++++++++++
+ .../packages/mali-bifrost/sources/Makefile    | 12 +++++++
+ .../019-rk3566-dt-for-mali-driver.patch       | 26 ++++++++++++++++
+ 7 files changed, 127 insertions(+), 1 deletion(-)
+ create mode 100644 projects/Rockchip/packages/mali-bifrost/package.mk
+ create mode 100644 projects/Rockchip/packages/mali-bifrost/patches/001-single-regulator.patch
+ create mode 100644 projects/Rockchip/packages/mali-bifrost/patches/002-lowercase-interrupts-first.patch
+ create mode 100644 projects/Rockchip/packages/mali-bifrost/sources/Makefile
+ create mode 100644 projects/Rockchip/patches/linux/RK3566/019-rk3566-dt-for-mali-driver.patch
+
+diff --git a/projects/Rockchip/devices/RK3566/linux/linux.aarch64.conf b/projects/Rockchip/devices/RK3566/linux/linux.aarch64.conf
+index a64b78dd8..6cb121cb0 100644
+--- a/projects/Rockchip/devices/RK3566/linux/linux.aarch64.conf
++++ b/projects/Rockchip/devices/RK3566/linux/linux.aarch64.conf
+@@ -5020,7 +5020,7 @@ CONFIG_DRM_PANEL_MIPI_DBI=y
+ # CONFIG_TINYDRM_ST7735R is not set
+ # CONFIG_DRM_PL111 is not set
+ # CONFIG_DRM_LIMA is not set
+-CONFIG_DRM_PANFROST=y
++CONFIG_DRM_PANFROST=m
+ # CONFIG_DRM_TIDSS is not set
+ # CONFIG_DRM_GUD is not set
+ # CONFIG_DRM_SSD130X is not set
+diff --git a/projects/Rockchip/devices/RK3566/options b/projects/Rockchip/devices/RK3566/options
+index 00058e645..6535aeb62 100644
+--- a/projects/Rockchip/devices/RK3566/options
++++ b/projects/Rockchip/devices/RK3566/options
+@@ -88,6 +88,7 @@
+   # Space separated list is supported,
+   # e.g. ADDITIONAL_DRIVERS="DRIVER1 DRIVER2"
+     ADDITIONAL_DRIVERS="RTL8812AU RTL8814AU RTL8821AU RTL8821CU RTL88x2BU"
++    ADDITIONAL_DRIVERS+=" mali-bifrost"
+ 
+   # Some devices have internal storage.
+     INSTALLER_SUPPORT="no"
+diff --git a/projects/Rockchip/packages/mali-bifrost/package.mk b/projects/Rockchip/packages/mali-bifrost/package.mk
+new file mode 100644
+index 000000000..78b66a7c7
+--- /dev/null
++++ b/projects/Rockchip/packages/mali-bifrost/package.mk
+@@ -0,0 +1,26 @@
++# SPDX-License-Identifier: GPL-2.0
++# Copyright (C) 2023 JELOS (https://github.com/JustEnoughLinuxOS)
++
++PKG_NAME="mali-bifrost"
++PKG_VERSION="r48p0-01eac0"
++PKG_LICENSE="GPL"
++PKG_SITE="https://developer.arm.com/downloads/-/mali-drivers/bifrost-kernel"
++PKG_URL="https://developer.arm.com/-/media/Files/downloads/mali-drivers/kernel/mali-bifrost-gpu/BX304L01B-SW-99002-${PKG_VERSION}.tar"
++PKG_LONGDESC="mali-bifrost: Linux drivers for Mali Bifrost GPUs"
++PKG_ARCH="aarch64"
++PKG_DEPENDS_TARGET="toolchain linux"
++PKG_NEED_UNPACK="${LINUX_DEPENDS}"
++PKG_TOOLCHAIN="manual"
++PKG_IS_KERNEL_PKG="yes"
++
++make_target() {
++  kernel_make KDIR=$(kernel_path) -C ${PKG_BUILD} \
++       CONFIG_MALI_MIDGARD=m CONFIG_MALI_PLATFORM_NAME=meson CONFIG_MALI_REAL_HW=y CONFIG_MALI_DEVFREQ=y CONFIG_MALI_GATOR_SUPPORT=y
++}
++
++makeinstall_target() {
++  DRIVER_DIR=${PKG_BUILD}/product/kernel/drivers/gpu/arm/midgard
++
++  mkdir -p ${INSTALL}/$(get_full_module_dir)/${PKG_NAME}
++    cp ${DRIVER_DIR}/mali_kbase.ko ${INSTALL}/$(get_full_module_dir)/${PKG_NAME}
++}
+diff --git a/projects/Rockchip/packages/mali-bifrost/patches/001-single-regulator.patch b/projects/Rockchip/packages/mali-bifrost/patches/001-single-regulator.patch
+new file mode 100644
+index 000000000..0ebd0b68a
+--- /dev/null
++++ b/projects/Rockchip/packages/mali-bifrost/patches/001-single-regulator.patch
+@@ -0,0 +1,31 @@
++--- a/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h	2024-02-19 17:24:21.000000000 +0300
+++++ b/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h	2024-03-18 23:51:35.201950500 +0300
++@@ -141,7 +141,7 @@
++  * This is dependent on support for of_property_read_u64_array() in the
++  * kernel.
++  */
++-#define BASE_MAX_NR_CLOCKS_REGULATORS (2)
+++#define BASE_MAX_NR_CLOCKS_REGULATORS (1)
++ 
++ /* Forward declarations */
++ struct kbase_context;
++--- a/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c	2024-03-19 00:26:38.775395807 +0300
+++++ b/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c	2024-03-19 00:23:39.644058337 +0300
++@@ -4725,7 +4725,7 @@
++ 	int err = 0;
++ 	unsigned int i;
++ #if defined(CONFIG_REGULATOR)
++-	static const char *const regulator_names[] = { "mali", "shadercores" };
+++	static const char *const regulator_names[] = { "mali", NULL };
++ 	BUILD_BUG_ON(ARRAY_SIZE(regulator_names) < BASE_MAX_NR_CLOCKS_REGULATORS);
++ #endif /* CONFIG_REGULATOR */
++ 
++@@ -4771,7 +4771,7 @@
++ 	 * operating with a partial initialization of clocks.
++ 	 */
++ 	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
++-		kbdev->clocks[i] = of_clk_get(kbdev->dev->of_node, (int)i);
+++		kbdev->clocks[i] = of_clk_get_by_name(kbdev->dev->of_node, "bus");
++ 		if (IS_ERR(kbdev->clocks[i])) {
++ 			err = PTR_ERR(kbdev->clocks[i]);
++ 			kbdev->clocks[i] = NULL;
+diff --git a/projects/Rockchip/packages/mali-bifrost/patches/002-lowercase-interrupts-first.patch b/projects/Rockchip/packages/mali-bifrost/patches/002-lowercase-interrupts-first.patch
+new file mode 100644
+index 000000000..dcd1e67c7
+--- /dev/null
++++ b/projects/Rockchip/packages/mali-bifrost/patches/002-lowercase-interrupts-first.patch
+@@ -0,0 +1,30 @@
++diff -ur build.ROCKNIX-RK3566.aarch64/mali-bifrost-r48p0-01eac0.orig/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c build.ROCKNIX-RK3566.aarch64/mali-bifrost-r48p0-01eac0/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
++--- mali-bifrost-r48p0-01eac0.orig/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c	2024-04-10 00:29:25.679588022 +0300
+++++ mali-bifrost-r48p0-01eac0/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c	2024-04-10 00:33:32.693922486 +0300
++@@ -548,9 +548,9 @@
++ static int get_irqs(struct kbase_device *kbdev, struct platform_device *pdev)
++ {
++ 	int i;
++-	static const char *const irq_names_caps[] = { "JOB", "MMU", "GPU" };
+++	static const char *const irq_names[] = { "job", "mmu", "gpu" };
++ 
++-	for (i = 0; i < ARRAY_SIZE(irq_names_caps); i++) {
+++	for (i = 0; i < ARRAY_SIZE(irq_names); i++) {
++ 		struct irq_data *irqdata;
++ 		int irq;
++ 
++@@ -560,11 +560,11 @@
++ 		 * first then try using Lower case names. If both attempts fail then
++ 		 * we assume there is no IRQ resource specified for the GPU.
++ 		 */
++-		irq = platform_get_irq_byname(pdev, irq_names_caps[i]);
+++		irq = platform_get_irq_byname(pdev, irq_names[i]);
++ 		if (irq < 0) {
++-			static const char *const irq_names[] = { "job", "mmu", "gpu" };
+++			static const char *const irq_names_caps[] = { "JOB", "MMU", "GPU" };
++ 
++-			irq = platform_get_irq_byname(pdev, irq_names[i]);
+++			irq = platform_get_irq_byname(pdev, irq_names_caps[i]);
++ 		}
++ 
++ 		if (irq < 0)
+diff --git a/projects/Rockchip/packages/mali-bifrost/sources/Makefile b/projects/Rockchip/packages/mali-bifrost/sources/Makefile
+new file mode 100644
+index 000000000..67d89bbfd
+--- /dev/null
++++ b/projects/Rockchip/packages/mali-bifrost/sources/Makefile
+@@ -0,0 +1,12 @@
++# SPDX-License-Identifier: GPL-2.0
++# Copyright (C) 2023 JELOS (https://github.com/JustEnoughLinuxOS)
++
++export
++
++MALI_KBASE_SRC_DIR = $(CURDIR)/product/kernel/drivers/gpu/arm/midgard
++
++all:
++	$(MAKE) -C $(MALI_KBASE_SRC_DIR) all
++
++clean:
++	$(MAKE) -C $(MALI_KBASE_SRC_DIR) clean
+diff --git a/projects/Rockchip/patches/linux/RK3566/019-rk3566-dt-for-mali-driver.patch b/projects/Rockchip/patches/linux/RK3566/019-rk3566-dt-for-mali-driver.patch
+new file mode 100644
+index 000000000..9fadf0790
+--- /dev/null
++++ b/projects/Rockchip/patches/linux/RK3566/019-rk3566-dt-for-mali-driver.patch
+@@ -0,0 +1,26 @@
++--- linux-6.8-rc6/arch/arm64/boot/dts/rockchip/rk356x.dtsi.orig	2024-02-26 02:46:06.000000000 +0300
+++++ linux-6.8-rc6/arch/arm64/boot/dts/rockchip/rk356x.dtsi	2024-03-21 09:47:32.732153738 +0300
++@@ -587,10 +587,23 @@
++ 		interrupt-names = "job", "mmu", "gpu";
++ 		clocks = <&scmi_clk 1>, <&cru CLK_GPU>;
++ 		clock-names = "gpu", "bus";
+++		resets = <&cru SRST_GPU>;
++ 		#cooling-cells = <2>;
++ 		operating-points-v2 = <&gpu_opp_table>;
++ 		power-domains = <&power RK3568_PD_GPU>;
+++		power_policy = "always_on";
++ 		status = "disabled";
+++		power_model@0 {
+++			compatible = "arm,mali-simple-power-model";
+++			static-coefficient = <100000>;
+++			dynamic-coefficient = <953>;
+++			ts = <(-108890) 63610 (-1355) 20>;
+++			thermal-zone = "gpu-thermal";
+++		};
+++		power_model@1 {
+++			compatible = "arm,mali-g52-power-model";
+++			scale = <5>;
+++		};
++ 	};
++ 
++ 	vpu: video-codec@fdea0400 {
+
+From 88654f27d9c9f2397e81e7218e700cda5e924431 Mon Sep 17 00:00:00 2001
+From: Danil Zagoskin <z@gosk.in>
+Date: Thu, 28 Mar 2024 22:27:59 +0300
+Subject: [PATCH 2/6] patchelf: build for host
+
+---
+ packages/tools/patchelf/package.mk | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/packages/tools/patchelf/package.mk b/packages/tools/patchelf/package.mk
+index 6b465dad2..9ea80af63 100644
+--- a/packages/tools/patchelf/package.mk
++++ b/packages/tools/patchelf/package.mk
+@@ -14,3 +14,16 @@ PKG_TOOLCHAIN="configure"
+ pre_configure_target() {
+ ./bootstrap.sh
+ }
++
++# "configure" toolchain does not separate host and target build dirs, so
++# make a fresh unpack in a dir which later is named PKG_REAL_BUILD
++# It is important to generate 'configure' script here because it affects PKG_REAL_BUILD value
++pre_build_host() {
++  HOST_BUILD_DIR="${PKG_BUILD}/.${HOST_NAME}"
++  mkdir -p "${HOST_BUILD_DIR}"
++  cd "${HOST_BUILD_DIR}"
++  tar -xf ${SOURCES}/${PKG_NAME}/${PKG_SOURCE_NAME} --strip-components=1
++  echo " PRE_BUILD  in ${PWD}"
++  ./bootstrap.sh
++  PKG_CONFIGURE_SCRIPT="${HOST_BUILD_DIR}/configure"
++}
+
+From 62ccddcd72df29c5bd853050b1e143ebc93bdca4 Mon Sep 17 00:00:00 2001
+From: Danil Zagoskin <z@gosk.in>
+Date: Sat, 27 Apr 2024 13:44:02 +0300
+Subject: [PATCH 3/6] add libmali package, selectable GPU driver
+
+---
+ .../graphics/libmali/autostart/003-gpudriver  |   5 +
+ .../libmali/modprobe.d/mali-gpu-noauto.conf   |   2 +
+ packages/graphics/libmali/package.mk          |  65 ++
+ .../graphics/libmali/sources/bin/gpudriver    |  68 ++
+ packages/graphics/libmali/sources/hook/hook.c | 707 ++++++++++++++++++
+ .../graphics/libmali/sources/hook/meson.build |  72 ++
+ packages/graphics/libmali/sources/rename.syms |   5 +
+ 7 files changed, 924 insertions(+)
+ create mode 100755 packages/graphics/libmali/autostart/003-gpudriver
+ create mode 100644 packages/graphics/libmali/modprobe.d/mali-gpu-noauto.conf
+ create mode 100644 packages/graphics/libmali/package.mk
+ create mode 100755 packages/graphics/libmali/sources/bin/gpudriver
+ create mode 100644 packages/graphics/libmali/sources/hook/hook.c
+ create mode 100644 packages/graphics/libmali/sources/hook/meson.build
+ create mode 100644 packages/graphics/libmali/sources/rename.syms
+
+diff --git a/packages/graphics/libmali/autostart/003-gpudriver b/packages/graphics/libmali/autostart/003-gpudriver
+new file mode 100755
+index 000000000..80d5bdf55
+--- /dev/null
++++ b/packages/graphics/libmali/autostart/003-gpudriver
+@@ -0,0 +1,5 @@
++#!/bin/sh
++# SPDX-License-Identifier: GPL-2.0
++# Copyright (C) 2024 ROCKNIX (https://github.com/ROCKNIX)
++
++/usr/bin/gpudriver --start
+diff --git a/packages/graphics/libmali/modprobe.d/mali-gpu-noauto.conf b/packages/graphics/libmali/modprobe.d/mali-gpu-noauto.conf
+new file mode 100644
+index 000000000..062333cd5
+--- /dev/null
++++ b/packages/graphics/libmali/modprobe.d/mali-gpu-noauto.conf
+@@ -0,0 +1,2 @@
++blacklist panfrost
++blacklist mali_kbase
+diff --git a/packages/graphics/libmali/package.mk b/packages/graphics/libmali/package.mk
+new file mode 100644
+index 000000000..0dcd49fc0
+--- /dev/null
++++ b/packages/graphics/libmali/package.mk
+@@ -0,0 +1,65 @@
++# SPDX-License-Identifier: GPL-2.0
++# Copyright (C) 2019-present Team LibreELEC (https://libreelec.tv)
++# Copyright (C) 2023 JELOS (https://github.com/JustEnoughLinuxOS)
++# Copyright (C) 2024 ROCKNIX (https://github.com/ROCKNIX)
++
++PKG_NAME="libmali"
++PKG_VERSION="v1.9-1-b9619b9"
++PKG_LICENSE="nonfree"
++PKG_SITE="https://github.com/tsukumijima/libmali-rockchip"
++# zip format makes extract very fast (<1s). tgz takes 20 seconds to scan the whole file
++PKG_URL="https://github.com/tsukumijima/libmali-rockchip/archive/refs/tags/${PKG_VERSION}.zip"
++PKG_DEPENDS_TARGET="toolchain libdrm patchelf:host"
++PKG_LONGDESC="OpenGL ES user-space binary for the ARM Mali GPU family"
++PKG_TOOLCHAIN="meson"
++
++# patchelf is incompatible with strip, but is needed to ensure apps call wrapped functions
++PKG_BUILD_FLAGS="-strip"
++
++case "${DISPLAYSERVER}" in
++  wl)
++    PLATFORM="wayland-gbm"
++    PKG_DEPENDS_TARGET+=" wayland"
++    ;;
++  x11)
++    PLATFORM="x11-gbm"
++    ;;
++  *)
++    PLATFORM="gbm"
++    ;;
++esac
++
++PKG_MESON_OPTS_TARGET+=" -Darch=${ARCH} -Dgpu=${MALI_FAMILY} -Dversion=${MALI_VERSION} -Dplatform=${PLATFORM} \
++                       -Dkhr-header=false -Dvendor-package=true -Dwrappers=enabled -Dhooks=true"
++
++
++unpack() {
++  mkdir -p "${PKG_BUILD}"
++  cd "${PKG_BUILD}"
++  pwd
++  # Extract only what is needed
++  LIBNAME="libmali-${MALI_FAMILY}-${MALI_VERSION}-${PLATFORM}.so"
++  unzip -q "${SOURCES}/${PKG_NAME}/${PKG_SOURCE_NAME}" "*/hook/*" "*/include/*" "*/scripts/*" "*/meson*" "*/${LIBNAME}"
++  mv libmali-rockchip-*/* .
++  rmdir libmali-rockchip-*
++  ln -s lib optimize_3
++}
++
++pre_make_target() {
++  patchelf --rename-dynamic-symbols "${PKG_BUILD}/rename.syms" libmali-prebuilt.so
++}
++
++post_makeinstall_target() {
++  rm -rf "${SYSROOT_PREFIX}/usr/include"   # all needed headers are installed by glvnd, mesa and wayland
++  rm -rf "${INSTALL}/etc/ld.so.conf.d" "${SYSROOT_PREFIX}/etc/ld.so.conf.d"
++  mkdir "${INSTALL}/etc/ld.so.conf.d"
++  echo "include /storage/.cache/ld.so.libmali.conf" > "${INSTALL}/etc/ld.so.conf.d/__priority__libmali.conf"
++
++  for lib in "${INSTALL}/usr/lib*/mali/*.so"; do
++    echo ${lib}
++    patchelf --add-needed libmali-hook.so.1 ${lib}
++  done
++
++  mkdir -p "${INSTALL}/usr/bin/"
++  cp -v "${PKG_BUILD}/bin/gpudriver" "${INSTALL}/usr/bin/"
++}
+diff --git a/packages/graphics/libmali/sources/bin/gpudriver b/packages/graphics/libmali/sources/bin/gpudriver
+new file mode 100755
+index 000000000..020a62d35
+--- /dev/null
++++ b/packages/graphics/libmali/sources/bin/gpudriver
+@@ -0,0 +1,68 @@
++#!/bin/sh
++# SPDX-License-Identifier: GPL-2.0
++# Copyright (C) 2024 ROCKNIX (https://github.com/ROCKNIX)
++
++
++get_current_driver() {
++  CONFDRIVER="panfrost"
++  grep -q mali ${LDCONFFILE} 2>/dev/null && CONFDRIVER="libmali"
++}
++
++load_driver() {
++  case ${CONFDRIVER} in
++    "libmali")
++      modprobe -r panfrost
++      modprobe mali_kbase
++      ;;
++    "panfrost")
++      modprobe -r mali_kbase
++      modprobe panfrost
++      ;;
++    *)
++      exit 3
++      ;;
++  esac
++}
++
++check_ld_cache() {
++  LDDRIVER="panfrost"
++  ldconfig -p | grep libEGL.so.1 | grep -q mali && LDDRIVER="libmali"
++  if [ ${CONFDRIVER} != ${LDDRIVER} ]; then
++    ldconfig
++  fi
++}
++
++
++# Determine configured driver
++LDCONFFILE=$(cat /etc/ld.so.conf.d/*.conf | grep mali | sed -n 's|include ||p' | head -1)
++
++case "$1" in
++  "--options")
++    echo "panfrost libmali"
++    ;;
++  "--start")
++    get_current_driver
++    check_ld_cache
++    load_driver
++    ;;
++  "libmali")
++    echo "/usr/lib/mali" > ${LDCONFFILE}
++    echo "/usr/lib32/mali" >> ${LDCONFFILE}
++    ;;
++  "panfrost")
++    rm ${LDCONFFILE}
++    ;;
++  "")
++    get_current_driver
++    echo ${CONFDRIVER}
++    ;;
++  *)
++    echo "Unexpected parameter $1" >&2
++    echo "Usage:" >&2
++    echo "  List available drivers:                $0 --options" >&2
++    echo "  Load configured driver and set libs:   $0 --start" >&2
++    echo "  Get current driver:                    $0" >&2
++    echo "  Configure driver to load on next boot: $0 <panfrost|libmali>" >&2
++    exit 1
++    ;;
++esac
+diff --git a/packages/graphics/libmali/sources/hook/hook.c b/packages/graphics/libmali/sources/hook/hook.c
+new file mode 100644
+index 000000000..6dbacc04c
+--- /dev/null
++++ b/packages/graphics/libmali/sources/hook/hook.c
+@@ -0,0 +1,707 @@
++/*
++ *  Copyright (c) 2020, Rockchip Electronics Co., Ltd
++ *
++ *  This program is free software; you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation; either version 2 of the License, or
++ *  (at your option) any later version.
++ *
++ *  This program is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ */
++
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE 1
++#endif
++
++#include <dlfcn.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <stdbool.h>
++#include <string.h>
++#include <xf86drm.h>
++#include <sys/mman.h>
++
++#ifdef HAS_GBM
++#include <gbm.h>
++#endif
++
++#ifdef HAS_EGL
++#include <EGL/egl.h>
++#include <EGL/eglext.h>
++#endif
++
++#ifdef HAS_X11
++#include <pthread.h>
++
++#include <X11/Xlib.h>
++#include <X11/Xlibint.h>
++#endif
++
++#ifndef ARRAY_SIZE
++#define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
++#endif
++
++#ifndef DRM_FORMAT_MOD_LINEAR
++#define DRM_FORMAT_MOD_LINEAR 0
++#endif
++
++#ifndef DRM_FORMAT_MOD_INVALID
++#define DRM_FORMAT_MOD_INVALID ((1ULL<<56) - 1)
++#endif
++
++/* A stub symbol to ensure that the hook library would not be removed as unused */
++int mali_injected = 0;
++
++/* Override libmali symbols */
++EGLAPI EGLBoolean EGLAPIENTRY _eglDestroySurface (EGLDisplay dpy, EGLSurface surface);
++
++#ifdef HAS_EGL
++static PFNEGLGETPLATFORMDISPLAYPROC eglGetPlatformDisplay_orig = NULL;
++#ifdef HAS_X11
++EGLAPI __eglMustCastToProperFunctionPointerType EGLAPIENTRY _eglGetProcAddress (const char *procname);
++static PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT_orig = NULL;
++#endif
++#endif
++
++
++#define PUBLIC
++
++__attribute__((constructor)) static void
++load_mali_symbols(void)
++{
++   void *handle;
++
++   /* The libmali should be already loaded */
++   handle = dlopen(LIBMALI_SO, RTLD_LAZY | RTLD_NOLOAD);
++   if (!handle) {
++      /* Should not reach here */
++      fprintf(stderr, "FATAL: dlopen(" LIBMALI_SO ") failed(%s)\n", dlerror());
++      exit(-1);
++   }
++
++#ifdef HAS_EGL
++   eglGetPlatformDisplay_orig =
++      (PFNEGLGETPLATFORMDISPLAYPROC)eglGetProcAddress("eglGetPlatformDisplay");
++#ifdef HAS_X11
++   eglGetPlatformDisplayEXT_orig =
++      (PFNEGLGETPLATFORMDISPLAYEXTPROC)_eglGetProcAddress("eglGetPlatformDisplayEXT");
++#endif
++#endif
++}
++
++#ifdef HAS_GBM
++
++/* Implement new GBM APIs */
++
++__attribute__((unused)) static inline bool
++can_ignore_modifiers(const uint64_t *modifiers,
++                     const unsigned int count)
++{
++   for (int i = 0; i < count; i++) {
++      if (modifiers[i] == DRM_FORMAT_MOD_LINEAR ||
++          modifiers[i] == DRM_FORMAT_MOD_INVALID) {
++         return true;
++      }
++   }
++
++   return !count;
++}
++
++#ifndef HAS_gbm_bo_get_offset
++uint32_t
++gbm_bo_get_offset(struct gbm_bo *bo, int plane)
++{
++   return 0;
++}
++#endif
++
++#ifndef HAS_gbm_bo_get_plane_count
++int
++gbm_bo_get_plane_count(struct gbm_bo *bo)
++{
++   return 1;
++}
++#endif
++
++#ifndef HAS_gbm_bo_get_stride_for_plane
++uint32_t
++gbm_bo_get_stride_for_plane(struct gbm_bo *bo, int plane)
++{
++   if (plane)
++      return 0;
++
++   return gbm_bo_get_stride(bo);
++}
++#endif
++
++#ifndef HAS_gbm_bo_get_fd_for_plane
++int
++gbm_bo_get_fd_for_plane(struct gbm_bo *bo, int plane)
++{
++   if (plane)
++      return -1;
++
++   return gbm_bo_get_fd(bo);
++}
++#endif
++
++#ifndef HAS_gbm_bo_get_handle_for_plane
++union gbm_bo_handle
++gbm_bo_get_handle_for_plane(struct gbm_bo *bo, int plane)
++{
++   union gbm_bo_handle ret;
++   ret.s32 = -1;
++
++   if (plane)
++      return ret;
++
++   return gbm_bo_get_handle(bo);
++}
++#endif
++
++#ifndef HAS_gbm_device_get_format_modifier_plane_count
++int
++gbm_device_get_format_modifier_plane_count(struct gbm_device *gbm,
++                                           uint32_t format,
++                                           uint64_t modifier)
++{
++   return can_ignore_modifiers(&modifier, 1) ? 1 : 0;
++}
++#endif
++
++#ifndef HAS_gbm_bo_create_with_modifiers2
++struct gbm_bo *
++gbm_bo_create_with_modifiers2(struct gbm_device *gbm,
++                              uint32_t width, uint32_t height,
++                              uint32_t format,
++                              const uint64_t *modifiers,
++                              const unsigned int count,
++                              uint32_t flags)
++{
++#ifdef HAS_gbm_bo_create_with_modifiers
++   /* flags ignored */
++   return gbm_bo_create_with_modifiers(gbm, width, height, format,
++                                        modifiers, count);
++#else
++   if (!can_ignore_modifiers(modifiers, count))
++      return NULL;
++
++   return gbm_bo_create(gbm, width, height, format, flags);
++#endif
++}
++#endif
++
++#ifndef HAS_gbm_bo_create_with_modifiers
++struct gbm_bo *
++gbm_bo_create_with_modifiers(struct gbm_device *gbm,
++                             uint32_t width, uint32_t height,
++                             uint32_t format,
++                             const uint64_t *modifiers,
++                             const unsigned int count)
++{
++   return gbm_bo_create_with_modifiers2(gbm, width, height, format,
++                                        modifiers, count, GBM_BO_USE_SCANOUT);
++}
++#endif
++
++#ifndef HAS_gbm_surface_create_with_modifiers2
++struct gbm_surface *
++gbm_surface_create_with_modifiers2(struct gbm_device *gbm,
++                                   uint32_t width, uint32_t height,
++                                   uint32_t format,
++                                   const uint64_t *modifiers,
++                                   const unsigned int count,
++                                   uint32_t flags)
++{
++#ifdef HAS_gbm_surface_create_with_modifiers
++   /* flags ignored */
++   return gbm_surface_create_with_modifiers(gbm, width, height, format,
++                                             modifiers, count);
++#else
++   if (!can_ignore_modifiers(modifiers, count))
++      return NULL;
++
++   return gbm_surface_create(gbm, width, height, format, 0);
++#endif
++}
++#endif
++
++#ifndef HAS_gbm_surface_create_with_modifiers
++struct gbm_surface *
++gbm_surface_create_with_modifiers(struct gbm_device *gbm,
++                                  uint32_t width, uint32_t height,
++                                  uint32_t format,
++                                  const uint64_t *modifiers,
++                                  const unsigned int count)
++{
++   return gbm_surface_create_with_modifiers2(gbm, width, height, format,
++                                             modifiers, count,
++                                             GBM_BO_USE_SCANOUT);
++}
++#endif
++
++#ifndef HAS_gbm_bo_map
++void *
++gbm_bo_map(struct gbm_bo *bo,
++           uint32_t x, uint32_t y, uint32_t width, uint32_t height,
++           uint32_t flags, uint32_t *stride, void **map_data)
++{
++   struct drm_mode_map_dumb arg;
++   struct gbm_device *gbm_dev;
++   void *map;
++   int fd, ret;
++
++   if (!bo || !map_data || width <= 0 || width > gbm_bo_get_width(bo) ||
++       height <= 0 || height > gbm_bo_get_height(bo)) {
++      errno = EINVAL;
++      return MAP_FAILED;
++   }
++
++   gbm_dev = gbm_bo_get_device(bo);
++   if (!gbm_dev)
++      return MAP_FAILED;
++
++   fd = gbm_device_get_fd(gbm_dev);
++   if (fd < 0)
++      return MAP_FAILED;
++
++   memset(&arg, 0, sizeof(arg));
++   arg.handle = gbm_bo_get_handle(bo).u32;
++   ret = drmIoctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &arg);
++   if (ret)
++      return MAP_FAILED;
++
++   map = mmap(NULL, gbm_bo_get_stride(bo) * gbm_bo_get_height(bo),
++              PROT_READ | PROT_WRITE, MAP_SHARED, fd, arg.offset);
++   if (map == MAP_FAILED)
++      return map;
++
++   *map_data = map;
++
++   if (stride)
++      *stride = gbm_bo_get_stride(bo);
++
++   return map + y * gbm_bo_get_stride(bo) + x * (gbm_bo_get_bpp(bo) >> 3);
++}
++#endif
++
++#ifndef HAS_gbm_bo_unmap
++void
++gbm_bo_unmap(struct gbm_bo *bo, void *map_data)
++{
++   if (map_data)
++      munmap(map_data, gbm_bo_get_stride(bo) * gbm_bo_get_height(bo));
++}
++#endif
++
++/* From mesa3d mesa-23.1.3-1 : src/gbm/main/gbm.c */
++#ifndef HAS_gbm_bo_get_bpp
++uint32_t
++gbm_bo_get_bpp(struct gbm_bo *bo)
++{
++   switch (gbm_bo_get_format(bo)) {
++   default:
++      return 0;
++   case GBM_FORMAT_C8:
++   case GBM_FORMAT_R8:
++   case GBM_FORMAT_RGB332:
++   case GBM_FORMAT_BGR233:
++      return 8;
++   case GBM_FORMAT_R16:
++   case GBM_FORMAT_GR88:
++   case GBM_FORMAT_XRGB4444:
++   case GBM_FORMAT_XBGR4444:
++   case GBM_FORMAT_RGBX4444:
++   case GBM_FORMAT_BGRX4444:
++   case GBM_FORMAT_ARGB4444:
++   case GBM_FORMAT_ABGR4444:
++   case GBM_FORMAT_RGBA4444:
++   case GBM_FORMAT_BGRA4444:
++   case GBM_FORMAT_XRGB1555:
++   case GBM_FORMAT_XBGR1555:
++   case GBM_FORMAT_RGBX5551:
++   case GBM_FORMAT_BGRX5551:
++   case GBM_FORMAT_ARGB1555:
++   case GBM_FORMAT_ABGR1555:
++   case GBM_FORMAT_RGBA5551:
++   case GBM_FORMAT_BGRA5551:
++   case GBM_FORMAT_RGB565:
++   case GBM_FORMAT_BGR565:
++      return 16;
++   case GBM_FORMAT_RGB888:
++   case GBM_FORMAT_BGR888:
++      return 24;
++   case GBM_FORMAT_RG1616:
++   case GBM_FORMAT_GR1616:
++   case GBM_FORMAT_XRGB8888:
++   case GBM_FORMAT_XBGR8888:
++   case GBM_FORMAT_RGBX8888:
++   case GBM_FORMAT_BGRX8888:
++   case GBM_FORMAT_ARGB8888:
++   case GBM_FORMAT_ABGR8888:
++   case GBM_FORMAT_RGBA8888:
++   case GBM_FORMAT_BGRA8888:
++   case GBM_FORMAT_XRGB2101010:
++   case GBM_FORMAT_XBGR2101010:
++   case GBM_FORMAT_RGBX1010102:
++   case GBM_FORMAT_BGRX1010102:
++   case GBM_FORMAT_ARGB2101010:
++   case GBM_FORMAT_ABGR2101010:
++   case GBM_FORMAT_RGBA1010102:
++   case GBM_FORMAT_BGRA1010102:
++      return 32;
++   case GBM_FORMAT_XBGR16161616:
++   case GBM_FORMAT_ABGR16161616:
++   case GBM_FORMAT_XBGR16161616F:
++   case GBM_FORMAT_ABGR16161616F:
++      return 64;
++   }
++}
++#endif
++
++/* From mesa3d mesa-23.1.3-1 : src/gbm/main/gbm.c */
++#ifndef HAS_gbm_format_get_name
++static uint32_t
++gbm_format_canonicalize(uint32_t gbm_format)
++{
++   switch (gbm_format) {
++   case GBM_BO_FORMAT_XRGB8888:
++      return GBM_FORMAT_XRGB8888;
++   case GBM_BO_FORMAT_ARGB8888:
++      return GBM_FORMAT_ARGB8888;
++   default:
++      return gbm_format;
++   }
++}
++
++char *
++gbm_format_get_name(uint32_t gbm_format, struct gbm_format_name_desc *desc)
++{
++   gbm_format = gbm_format_canonicalize(gbm_format);
++
++   desc->name[0] = gbm_format;
++   desc->name[1] = gbm_format >> 8;
++   desc->name[2] = gbm_format >> 16;
++   desc->name[3] = gbm_format >> 24;
++   desc->name[4] = 0;
++
++   return desc->name;
++}
++#endif
++
++/* Wrappers for invalid modifier */
++
++uint64_t
++_gbm_bo_get_modifier(struct gbm_bo *bo);
++
++uint64_t
++gbm_bo_get_modifier(struct gbm_bo *bo)
++{
++#ifdef HAS_gbm_bo_get_modifier
++   uint64_t modifier = _gbm_bo_get_modifier(bo);
++   if (modifier != DRM_FORMAT_MOD_INVALID)
++      return modifier;
++#endif
++   return DRM_FORMAT_MOD_LINEAR;
++}
++
++/* Wrappers for unsupported flags */
++
++struct gbm_surface *
++_gbm_surface_create(struct gbm_device *gbm,
++                   uint32_t width, uint32_t height,
++		   uint32_t format, uint32_t flags);
++struct gbm_surface *
++gbm_surface_create(struct gbm_device *gbm,
++                   uint32_t width, uint32_t height,
++                   uint32_t format, uint32_t flags)
++{
++   struct gbm_surface *surface;
++
++   surface = _gbm_surface_create(gbm, width, height, format, flags);
++   if (surface)
++      return surface;
++
++   flags &= GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING;
++   return _gbm_surface_create(gbm, width, height, format, flags);
++}
++
++struct gbm_bo *
++_gbm_bo_create(struct gbm_device *gbm,
++              uint32_t width, uint32_t height,
++              uint32_t format, uint32_t flags);
++struct gbm_bo *
++gbm_bo_create(struct gbm_device *gbm,
++              uint32_t width, uint32_t height,
++              uint32_t format, uint32_t flags)
++{
++   struct gbm_bo *bo;
++
++   bo = _gbm_bo_create(gbm, width, height, format, flags);
++   if (bo)
++      return bo;
++
++   flags &= GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING |
++      GBM_BO_USE_WRITE | GBM_BO_USE_CURSOR_64X64;
++   return _gbm_bo_create(gbm, width, height, format, flags);
++}
++
++#endif // HAS_GBM
++
++#ifdef HAS_EGL
++#ifdef HAS_X11
++
++/* Hacked displays (should not be much) */
++#define MAX_X11_DISPLAY 32
++static Display *_x11_displays[MAX_X11_DISPLAY] = { NULL, };
++
++static pthread_mutex_t _x11_mutex = PTHREAD_MUTEX_INITIALIZER;
++
++static inline int
++force_x11_threads(void)
++{
++   return !getenv("MALI_X11_NO_FORCE_THREADS");
++}
++
++__attribute__((constructor)) static void
++init_x11_threads(void)
++{
++   if (force_x11_threads())
++      XInitThreads();
++}
++
++__attribute__((destructor)) static void
++cleanup_x11_display(void)
++{
++   int i;
++
++   for (i = 0; i < MAX_X11_DISPLAY; i++) {
++      Display *display = _x11_displays[i];
++      if (display)
++         XCloseDisplay(display);
++   }
++}
++
++static Display *
++fixup_x11_display(Display *display)
++{
++   int i;
++
++   if (!force_x11_threads())
++      return display;
++
++   if (!display || display->lock_fns)
++      return display;
++
++   pthread_mutex_lock(&_x11_mutex);
++   /* Create a new threaded display */
++   display = XOpenDisplay(DisplayString(display));
++
++   for (i = 0; i < MAX_X11_DISPLAY; i++) {
++      if (!_x11_displays[i]) {
++         _x11_displays[i] = display;
++         break;
++      }
++   }
++   pthread_mutex_unlock(&_x11_mutex);
++
++   return display;
++}
++
++/* Override EGL symbols */
++
++EGLAPI EGLDisplay EGLAPIENTRY
++eglGetPlatformDisplayEXT (EGLenum platform, void *native_display, const EGLint *attrib_list)
++{
++   if (!eglGetPlatformDisplayEXT_orig)
++      return EGL_NO_DISPLAY;
++
++   if (platform == EGL_PLATFORM_X11_KHR && native_display) {
++      native_display = (void *)fixup_x11_display(native_display);
++      if (!native_display)
++         return EGL_NO_DISPLAY;
++   }
++
++   return eglGetPlatformDisplayEXT_orig(platform, native_display, attrib_list);
++}
++
++PUBLIC __eglMustCastToProperFunctionPointerType EGLAPIENTRY
++eglGetProcAddress(const char *procname)
++{
++   if (!procname)
++      return NULL;
++
++   if (!strcmp(procname, __func__))
++      return (__eglMustCastToProperFunctionPointerType)_eglGetProcAddress;
++
++   if (!strcmp(procname, "eglGetDisplay"))
++      return (__eglMustCastToProperFunctionPointerType)eglGetDisplay;
++
++   if (!strcmp(procname, "eglGetPlatformDisplay")) {
++      if (!eglGetPlatformDisplay_orig && !eglGetPlatformDisplayEXT_orig)
++         return NULL;
++      return (__eglMustCastToProperFunctionPointerType)eglGetPlatformDisplay;
++   }
++
++   if (!strcmp(procname, "eglGetPlatformDisplayEXT")) {
++      if (!eglGetPlatformDisplayEXT_orig)
++         return NULL;
++      return (__eglMustCastToProperFunctionPointerType)eglGetPlatformDisplayEXT;
++   }
++
++   if (!strcmp(procname, "eglDestroySurface"))
++      return (__eglMustCastToProperFunctionPointerType)eglDestroySurface;
++
++   return _eglGetProcAddress(procname);
++}
++
++#endif // HAS_X11
++
++EGLAPI EGLDisplay EGLAPIENTRY _eglGetDisplay (EGLNativeDisplayType display_id);
++PUBLIC EGLDisplay EGLAPIENTRY
++eglGetDisplay (EGLNativeDisplayType display_id)
++{
++   const char *type = getenv("MALI_DEFAULT_WINSYS");
++
++#ifdef HAS_GBM
++   if (type && !strcmp(type, "gbm"))
++      return eglGetPlatformDisplay(EGL_PLATFORM_GBM_KHR, display_id, NULL);
++#endif
++
++#ifdef HAS_WAYLAND
++   if (type && !strcmp(type, "wayland"))
++      return eglGetPlatformDisplay(EGL_PLATFORM_WAYLAND_EXT, display_id, NULL);
++#endif
++
++#ifdef HAS_X11
++   /* Use X11 by default when avaiable */
++   return eglGetPlatformDisplay(EGL_PLATFORM_X11_KHR, display_id, NULL);
++#else
++   return _eglGetDisplay(display_id);
++#endif
++}
++
++/* Export for EGL 1.5 */
++
++#define GET_PROC_ADDR(v, n) v = (typeof(v))eglGetProcAddress(n)
++
++/* From mesa3d mesa-23.1.3-1 : src/egl/main/egldisplay.h */
++static inline size_t
++_eglNumAttribs(const EGLAttrib *attribs)
++{
++   size_t len = 0;
++
++   if (attribs) {
++      while (attribs[len] != EGL_NONE)
++         len += 2;
++      len++;
++   }
++   return len;
++}
++
++/* From mesa3d mesa-23.1.3-1 : src/egl/main/eglapi.c */
++static EGLint *
++_eglConvertAttribsToInt(const EGLAttrib *attr_list)
++{
++   size_t size = _eglNumAttribs(attr_list);
++   EGLint *int_attribs = NULL;
++
++   /* Convert attributes from EGLAttrib[] to EGLint[] */
++   if (size) {
++      int_attribs = calloc(size, sizeof(int_attribs[0]));
++      if (!int_attribs)
++         return NULL;
++
++      for (size_t i = 0; i < size; i++)
++         int_attribs[i] = attr_list[i];
++   }
++   return int_attribs;
++}
++
++EGLAPI EGLDisplay EGLAPIENTRY
++eglGetPlatformDisplay(EGLenum platform, void *native_display, const EGLAttrib *attrib_list)
++{
++   PFNEGLGETPLATFORMDISPLAYEXTPROC get_platform_display_ext;
++
++   GET_PROC_ADDR(get_platform_display_ext, "eglGetPlatformDisplayEXT");
++   if (get_platform_display_ext) {
++      EGLint *int_attribs = _eglConvertAttribsToInt(attrib_list);
++      if (!int_attribs == !attrib_list) {
++         EGLDisplay display =
++            get_platform_display_ext(platform, native_display, int_attribs);
++         free(int_attribs);
++         return display;
++      }
++   }
++
++   if (!eglGetPlatformDisplay_orig)
++      return EGL_NO_DISPLAY;
++
++#ifdef HAS_X11
++   if (platform == EGL_PLATFORM_X11_KHR && native_display) {
++      native_display = (void *)fixup_x11_display(native_display);
++      if (!native_display)
++         return EGL_NO_DISPLAY;
++   }
++#endif
++
++   return eglGetPlatformDisplay_orig(platform, native_display, attrib_list);
++}
++
++EGLAPI EGLSurface EGLAPIENTRY
++eglCreatePlatformWindowSurface(EGLDisplay dpy, EGLConfig config, void *native_window, const EGLAttrib *attrib_list)
++{
++   PFNEGLCREATEPLATFORMWINDOWSURFACEPROC create_platform_window_surface;
++
++   GET_PROC_ADDR(create_platform_window_surface,
++                 "eglCreatePlatformWindowSurface");
++   if (!create_platform_window_surface) {
++      EGLint *int_attribs = _eglConvertAttribsToInt(attrib_list);
++      if (!int_attribs == !attrib_list) {
++         EGLSurface surface =
++            eglCreateWindowSurface(dpy, config, native_window, int_attribs);
++         free(int_attribs);
++         return surface;
++      }
++   }
++
++   return create_platform_window_surface(dpy, config, native_window, attrib_list);
++}
++
++EGLAPI EGLSurface EGLAPIENTRY
++eglCreatePlatformPixmapSurface(EGLDisplay dpy, EGLConfig config, void *native_pixmap, const EGLAttrib *attrib_list)
++{
++   PFNEGLCREATEPLATFORMPIXMAPSURFACEPROC create_platform_pixmap_surface;
++
++   GET_PROC_ADDR(create_platform_pixmap_surface,
++                 "eglCreatePlatformPixmapSurface");
++   if (!create_platform_pixmap_surface) {
++      EGLint *int_attribs = _eglConvertAttribsToInt(attrib_list);
++      if (!int_attribs == !attrib_list) {
++         EGLSurface surface =
++            eglCreatePixmapSurface(dpy, config, native_pixmap, int_attribs);
++         free(int_attribs);
++         return surface;
++      }
++   }
++
++   return create_platform_pixmap_surface(dpy, config, native_pixmap, attrib_list);
++}
++
++/* Unset current surface before destroying it */
++PUBLIC EGLBoolean
++eglDestroySurface(EGLDisplay dpy, EGLSurface surface)
++{
++   if (eglGetCurrentSurface(EGL_DRAW) == surface ||
++       eglGetCurrentSurface(EGL_READ) == surface)
++      eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
++
++   return _eglDestroySurface(dpy, surface);
++}
++
++#endif // HAS_EGL
+diff --git a/packages/graphics/libmali/sources/hook/meson.build b/packages/graphics/libmali/sources/hook/meson.build
+new file mode 100644
+index 000000000..091cfdd71
+--- /dev/null
++++ b/packages/graphics/libmali/sources/hook/meson.build
+@@ -0,0 +1,72 @@
++# The gbm functions that might be missing
++gbm_check_funcs = [
++  'gbm_bo_map',
++  'gbm_bo_unmap',
++  'gbm_bo_get_offset',
++  'gbm_bo_get_plane_count',
++  'gbm_device_get_format_modifier_plane_count',
++  'gbm_bo_get_handle_for_plane',
++  'gbm_bo_get_stride_for_plane',
++  'gbm_bo_get_fd_for_plane',
++  'gbm_bo_get_modifier',
++  'gbm_bo_create_with_modifiers',
++  'gbm_bo_create_with_modifiers2',
++  'gbm_surface_create_with_modifiers',
++  'gbm_surface_create_with_modifiers2',
++  'gbm_bo_get_bpp',
++  'gbm_format_get_name',
++]
++
++libhook_cflags = [
++  '-DLIBMALI_SO="libmali.so.' + mali_version.split('.')[0] + '"',
++]
++
++libhook_dep = [
++  dependency('threads'),
++  cc.find_library('dl', required : false),
++  dependency('libdrm', version : '>= 2.4.0'),
++]
++
++libhook_inc = []
++
++if cc.has_function('gbm_create_device', dependencies : mali)
++  # Add hooks to support new GBM APIs
++  libhook_inc += include_directories('..' / gbm_headers.keys()[0])
++  libhook_cflags += '-DHAS_GBM'
++  foreach symbol : gbm_check_funcs
++    if cc.has_function(symbol, dependencies : mali)
++      libhook_cflags += '-DHAS_' + symbol
++    endif
++  endforeach
++endif
++
++if cc.has_function('eglCreateContext', dependencies : mali)
++  # Add hooks to support default winsys
++  libhook_inc += include_directories('../include')
++  libhook_cflags += '-DHAS_EGL'
++
++  if cc.has_function('wl_egl_window_create', dependencies : mali)
++    libhook_cflags += '-DHAS_WAYLAND'
++  endif
++
++  if has_x11
++    # Add hooks to init X11 threads
++    libhook_dep += dependency('x11')
++    libhook_cflags += '-DHAS_X11'
++  endif
++endif
++
++vflag = '-Wl,--export-dynamic'
++
++libhook = shared_library(
++  'mali-hook',
++  'hook.c',
++  c_args : libhook_cflags,
++  link_args : [vflag, '-L.', '-lmali-prebuilt'],
++  include_directories : libhook_inc,
++  dependencies : libhook_dep,
++  install : true,
++  install_rpath : '$ORIGIN',
++  version : mali_version)
++
++libhook_ldflags = ['-L${libdir}', '-lmali-hook']
+diff --git a/packages/graphics/libmali/sources/rename.syms b/packages/graphics/libmali/sources/rename.syms
+new file mode 100644
+index 000000000..777f046ec
+--- /dev/null
++++ b/packages/graphics/libmali/sources/rename.syms
+@@ -0,0 +1,5 @@
++gbm_surface_create _gbm_surface_create
++gbm_bo_create _gbm_bo_create
++gbm_bo_get_modifier _gbm_bo_get_modifier
++eglGetDisplay _eglGetDisplay
++eglDestroySurface _eglDestroySurface
+
+From d2a6c481209f29d4245fa7db8e08de0fd3a284b1 Mon Sep 17 00:00:00 2001
+From: Danil Zagoskin <z@gosk.in>
+Date: Wed, 24 Apr 2024 02:10:43 +0300
+Subject: [PATCH 4/6] wlroots: add rockchip patches to work with libmali
+
+---
+ ...-Fallback-to-the-first-possible-crtc.patch |  69 +++
+ ...render-egl-Fallback-to-gbm-device-fd.patch |  28 +
+ ...port-EGL_WL_bind_wayland_display-ext.patch | 536 ++++++++++++++++++
+ ...Extract-dmabuf-from-mali-shared-EGL-.patch |  71 +++
+ .../0006-fix-missing-glGetInteger64vEXT.patch |  32 ++
+ 5 files changed, 736 insertions(+)
+ create mode 100644 packages/wayland/lib/wlroots/patches/0002-drm-Fallback-to-the-first-possible-crtc.patch
+ create mode 100644 packages/wayland/lib/wlroots/patches/0003-render-egl-Fallback-to-gbm-device-fd.patch
+ create mode 100644 packages/wayland/lib/wlroots/patches/0004-render-gles2-Support-EGL_WL_bind_wayland_display-ext.patch
+ create mode 100644 packages/wayland/lib/wlroots/patches/0005-HACK-render-egl-Extract-dmabuf-from-mali-shared-EGL-.patch
+ create mode 100644 packages/wayland/lib/wlroots/patches/0006-fix-missing-glGetInteger64vEXT.patch
+
+diff --git a/packages/wayland/lib/wlroots/patches/0002-drm-Fallback-to-the-first-possible-crtc.patch b/packages/wayland/lib/wlroots/patches/0002-drm-Fallback-to-the-first-possible-crtc.patch
+new file mode 100644
+index 000000000..b78155c59
+--- /dev/null
++++ b/packages/wayland/lib/wlroots/patches/0002-drm-Fallback-to-the-first-possible-crtc.patch
+@@ -0,0 +1,69 @@
++From 4a6d21d4496d9235f1e6b342e79503db7ec3d8b0 Mon Sep 17 00:00:00 2001
++From: Jeffy Chen <jeffy.chen@rock-chips.com>
++Date: Mon, 1 Apr 2024 16:04:29 +0800
++Subject: [PATCH 3/4] drm: Fallback to the first possible crtc
++
++Signed-off-by: Jeffy Chen <jeffy.chen@rock-chips.com>
++---
++ backend/drm/atomic.c |  1 +
++ backend/drm/drm.c    | 18 ++++++++++++++++--
++ 2 files changed, 17 insertions(+), 2 deletions(-)
++
++diff --git a/backend/drm/atomic.c b/backend/drm/atomic.c
++index 755e595..6b550b8 100644
++--- a/backend/drm/atomic.c
+++++ b/backend/drm/atomic.c
++@@ -316,6 +316,7 @@ static bool atomic_crtc_commit(struct wlr_drm_connector *conn,
++ 
++ 	struct atomic atom;
++ 	atomic_begin(&atom);
+++	if (conn->props.crtc_id)
++ 	atomic_add(&atom, conn->id, conn->props.crtc_id, active ? crtc->id : 0);
++ 	if (modeset && active && conn->props.link_status != 0) {
++ 		atomic_add(&atom, conn->id, conn->props.link_status,
++diff --git a/backend/drm/drm.c b/backend/drm/drm.c
++index 17cd29b..0af6cfc 100644
++--- a/backend/drm/drm.c
+++++ b/backend/drm/drm.c
++@@ -1111,7 +1111,7 @@ static void realloc_crtcs(struct wlr_drm_backend *drm,
++ 	}
++ }
++ 
++-static struct wlr_drm_crtc *connector_get_current_crtc(
+++static struct wlr_drm_crtc *connector_get_crtc(
++ 		struct wlr_drm_connector *wlr_conn, const drmModeConnector *drm_conn) {
++ 	struct wlr_drm_backend *drm = wlr_conn->backend;
++ 
++@@ -1135,6 +1135,20 @@ static struct wlr_drm_crtc *connector_get_current_crtc(
++ 		}
++ 		crtc_id = enc->crtc_id;
++ 		drmModeFreeEncoder(enc);
+++	} else {
+++		/* If no active crtc was found, pick the first possible crtc */
+++		uint32_t crtcs_for_connector = 0;
+++		int i;
+++
+++		for (i = 0; i < drm_conn->count_encoders; i++) {
+++			drmModeEncoder *enc =
+++				drmModeGetEncoder(drm->fd, drm_conn->encoders[i]);
+++			crtcs_for_connector |= enc->possible_crtcs;
+++			drmModeFreeEncoder(enc);
+++		}
+++
+++		if (crtcs_for_connector != 0)
+++			return &drm->crtcs[ffs(crtcs_for_connector) - 1];
++ 	}
++ 	if (crtc_id == 0) {
++ 		return NULL;
++@@ -1178,7 +1192,7 @@ static struct wlr_drm_connector *create_drm_connector(struct wlr_drm_backend *dr
++ 		wlr_drm_conn_log(wlr_conn, WLR_ERROR, "No CRTC possible");
++ 	}
++ 
++-	wlr_conn->crtc = connector_get_current_crtc(wlr_conn, drm_conn);
+++	wlr_conn->crtc = connector_get_crtc(wlr_conn, drm_conn);
++ 
++ 	wl_list_insert(drm->outputs.prev, &wlr_conn->link);
++ 	return wlr_conn;
++-- 
++2.20.1
++
+diff --git a/packages/wayland/lib/wlroots/patches/0003-render-egl-Fallback-to-gbm-device-fd.patch b/packages/wayland/lib/wlroots/patches/0003-render-egl-Fallback-to-gbm-device-fd.patch
+new file mode 100644
+index 000000000..74fdf130c
+--- /dev/null
++++ b/packages/wayland/lib/wlroots/patches/0003-render-egl-Fallback-to-gbm-device-fd.patch
+@@ -0,0 +1,28 @@
++From aa2e17d5dc13886860ebb8e19b0abf5d595a97c8 Mon Sep 17 00:00:00 2001
++From: Jeffy Chen <jeffy.chen@rock-chips.com>
++Date: Mon, 1 Apr 2024 16:24:09 +0800
++Subject: [PATCH 4/4] render: egl: Fallback to gbm device fd
++
++Signed-off-by: Jeffy Chen <jeffy.chen@rock-chips.com>
++---
++ render/egl.c | 4 ++++
++ 1 file changed, 4 insertions(+)
++
++diff --git a/render/egl.c b/render/egl.c
++index 0c25e03..d67ab5e 100644
++--- a/render/egl.c
+++++ b/render/egl.c
++@@ -942,6 +942,10 @@ static char *get_render_name(const char *name) {
++ int wlr_egl_dup_drm_fd(struct wlr_egl *egl) {
++ 	if (egl->device == EGL_NO_DEVICE_EXT || (!egl->exts.EXT_device_drm &&
++ 			!egl->exts.EXT_device_drm_render_node)) {
+++		/* fallback to gbm device fd */
+++		if (egl->gbm_device)
+++			return dup(gbm_device_get_fd(egl->gbm_device));
+++
++ 		return -1;
++ 	}
++ 
++-- 
++2.20.1
++
+diff --git a/packages/wayland/lib/wlroots/patches/0004-render-gles2-Support-EGL_WL_bind_wayland_display-ext.patch b/packages/wayland/lib/wlroots/patches/0004-render-gles2-Support-EGL_WL_bind_wayland_display-ext.patch
+new file mode 100644
+index 000000000..8c3dbe685
+--- /dev/null
++++ b/packages/wayland/lib/wlroots/patches/0004-render-gles2-Support-EGL_WL_bind_wayland_display-ext.patch
+@@ -0,0 +1,536 @@
++commit 75333557e1ff0dbc245f40e388697315ac59c6cf
++Author: Jeffy Chen <jeffy.chen@rock-chips.com>
++Date:   Thu Apr 25 10:22:45 2024 +0300
++
++    render: gles2: Support EGL_WL_bind_wayland_display extension
++    
++    See:
++    https://registry.khronos.org/EGL/extensions/WL/EGL_WL_bind_wayland_display.txt
++
++diff --git a/include/render/egl.h b/include/render/egl.h
++index e8b85964..10881f01 100644
++--- a/include/render/egl.h
+++++ b/include/render/egl.h
++@@ -8,6 +8,7 @@ struct wlr_egl {
++ 	EGLContext context;
++ 	EGLDeviceEXT device; // may be EGL_NO_DEVICE_EXT
++ 	struct gbm_device *gbm_device;
+++	struct wl_display *wl_display;
++ 
++ 	struct {
++ 		// Display extensions
++@@ -16,6 +17,7 @@ struct wlr_egl {
++ 		bool EXT_image_dma_buf_import_modifiers;
++ 		bool IMG_context_priority;
++ 		bool EXT_create_context_robustness;
+++		bool WL_bind_wayland_display;
++ 
++ 		// Device extensions
++ 		bool EXT_device_drm;
++@@ -32,6 +34,9 @@ struct wlr_egl {
++ 		PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT;
++ 		PFNEGLCREATEIMAGEKHRPROC eglCreateImageKHR;
++ 		PFNEGLDESTROYIMAGEKHRPROC eglDestroyImageKHR;
+++		PFNEGLBINDWAYLANDDISPLAYWL eglBindWaylandDisplayWL;
+++		PFNEGLUNBINDWAYLANDDISPLAYWL eglUnbindWaylandDisplayWL;
+++		PFNEGLQUERYWAYLANDBUFFERWL eglQueryWaylandBufferWL;
++ 		PFNEGLQUERYDMABUFFORMATSEXTPROC eglQueryDmaBufFormatsEXT;
++ 		PFNEGLQUERYDMABUFMODIFIERSEXTPROC eglQueryDmaBufModifiersEXT;
++ 		PFNEGLDEBUGMESSAGECONTROLKHRPROC eglDebugMessageControlKHR;
++diff --git a/include/wlr/render/interface.h b/include/wlr/render/interface.h
++index 06f4083f..2fd7f3d0 100644
++--- a/include/wlr/render/interface.h
+++++ b/include/wlr/render/interface.h
++@@ -20,6 +20,8 @@ struct wlr_box;
++ struct wlr_fbox;
++ 
++ struct wlr_renderer_impl {
+++	bool (*bind_wl_display)(struct wlr_renderer *renderer,
+++		struct wl_display *wl_display);
++ 	bool (*bind_buffer)(struct wlr_renderer *renderer,
++ 		struct wlr_buffer *buffer);
++ 	bool (*begin)(struct wlr_renderer *renderer, uint32_t width,
++diff --git a/include/wlr/types/wlr_egl_buffer.h b/include/wlr/types/wlr_egl_buffer.h
++new file mode 100644
++index 00000000..66381f91
++--- /dev/null
+++++ b/include/wlr/types/wlr_egl_buffer.h
++@@ -0,0 +1,78 @@
+++/*
+++ * This an unstable interface of wlroots. No guarantees are made regarding the
+++ * future consistency of this API.
+++ */
+++#ifndef WLR_USE_UNSTABLE
+++#error "Add -DWLR_USE_UNSTABLE to enable unstable wlroots features"
+++#endif
+++
+++#ifndef WLR_TYPES_WLR_EGL_BUFFER_H
+++#define WLR_TYPES_WLR_EGL_BUFFER_H
+++
+++#include <stdint.h>
+++#include <sys/stat.h>
+++#include <wayland-server-core.h>
+++#include <wlr/types/wlr_buffer.h>
+++#include <wlr/render/drm_format_set.h>
+++#include <wlr/render/egl.h>
+++
+++
+++/**
+++ * Part of mesa3d's EGL/eglmesaext.h
+++ */
+++#ifndef EGL_WL_bind_wayland_display
+++#define EGL_WL_bind_wayland_display 1
+++
+++#define EGL_WAYLAND_BUFFER_WL           0x31D5 /* eglCreateImageKHR target */
+++#define EGL_WAYLAND_PLANE_WL            0x31D6 /* eglCreateImageKHR target */
+++
+++#define EGL_TEXTURE_EXTERNAL_WL         0x31DA
+++
+++struct wl_display;
+++struct wl_resource;
+++#ifdef EGL_EGLEXT_PROTOTYPES
+++EGLAPI EGLBoolean EGLAPIENTRY eglBindWaylandDisplayWL(EGLDisplay dpy, struct wl_display *display);
+++EGLAPI EGLBoolean EGLAPIENTRY eglUnbindWaylandDisplayWL(EGLDisplay dpy, struct wl_display *display);
+++EGLAPI EGLBoolean EGLAPIENTRY eglQueryWaylandBufferWL(EGLDisplay dpy, struct wl_resource *buffer, EGLint attribute, EGLint *value);
+++#endif
+++typedef EGLBoolean (EGLAPIENTRYP PFNEGLBINDWAYLANDDISPLAYWL) (EGLDisplay dpy, struct wl_display *display);
+++typedef EGLBoolean (EGLAPIENTRYP PFNEGLUNBINDWAYLANDDISPLAYWL) (EGLDisplay dpy, struct wl_display *display);
+++typedef EGLBoolean (EGLAPIENTRYP PFNEGLQUERYWAYLANDBUFFERWL) (EGLDisplay dpy, struct wl_resource *buffer, EGLint attribute, EGLint *value);
+++
+++#endif
+++
+++static struct wlr_egl *wlr_egl_buffer_egl;
+++
+++struct wlr_egl_buffer {
+++	struct wlr_buffer base;
+++	struct wlr_egl *egl;
+++	bool has_alpha;
+++
+++	struct wl_resource *resource;
+++	struct wl_listener resource_destroy;
+++	struct wl_listener release;
+++};
+++
+++void egl_buffer_register(struct wlr_egl *egl);
+++
+++struct wlr_egl_buffer *wlr_buffer_to_egl(struct wlr_buffer *buffer);
+++
+++/**
+++ * Bind the wl_display of a Wayland compositor to an EGLDisplay.
+++ *
+++ * See:
+++ * https://registry.khronos.org/EGL/extensions/WL/EGL_WL_bind_wayland_display.txt
+++ */
+++bool wlr_egl_bind_wl_display(struct wlr_egl *egl, struct wl_display *wl_display);
+++
+++/**
+++ * Creates an EGL image from the given EGL wl_buffer.
+++ *
+++ * See:
+++ * https://registry.khronos.org/EGL/extensions/WL/EGL_WL_bind_wayland_display.txt
+++ */
+++EGLImageKHR wlr_egl_create_image_from_eglbuf(struct wlr_egl *egl,
+++		struct wlr_egl_buffer *buffer);
+++
+++
+++#endif  /* WLR_TYPES_WLR_EGL_BUFFER_H */
++diff --git a/render/egl.c b/render/egl.c
++index a423f42e..88eb4032 100644
++--- a/render/egl.c
+++++ b/render/egl.c
++@@ -9,6 +9,7 @@
++ #include <wlr/render/egl.h>
++ #include <wlr/util/log.h>
++ #include <wlr/util/region.h>
+++#include <wlr/types/wlr_egl_buffer.h>
++ #include <xf86drm.h>
++ #include "render/egl.h"
++ #include "util/env.h"
++@@ -296,6 +297,16 @@ static bool egl_init_display(struct wlr_egl *egl, EGLDisplay display) {
++ 	egl->exts.EXT_create_context_robustness =
++ 		check_egl_ext(display_exts_str, "EGL_EXT_create_context_robustness");
++ 
+++	if (check_egl_ext(display_exts_str, "EGL_WL_bind_wayland_display")) {
+++		egl->exts.WL_bind_wayland_display = true;
+++		load_egl_proc(&egl->procs.eglBindWaylandDisplayWL,
+++			"eglBindWaylandDisplayWL");
+++		load_egl_proc(&egl->procs.eglUnbindWaylandDisplayWL,
+++			"eglUnbindWaylandDisplayWL");
+++		load_egl_proc(&egl->procs.eglQueryWaylandBufferWL,
+++			"eglQueryWaylandBufferWL");
+++	}
+++
++ 	const char *device_exts_str = NULL, *driver_name = NULL;
++ 	if (egl->exts.EXT_device_query) {
++ 		EGLAttrib device_attrib;
++@@ -436,6 +447,8 @@ static bool egl_init(struct wlr_egl *egl, EGLenum platform,
++ 		}
++ 	}
++ 
+++	egl_buffer_register(egl);
+++
++ 	return true;
++ }
++ 
++@@ -614,6 +627,9 @@ void wlr_egl_destroy(struct wlr_egl *egl) {
++ 	wlr_drm_format_set_finish(&egl->dmabuf_render_formats);
++ 	wlr_drm_format_set_finish(&egl->dmabuf_texture_formats);
++ 
+++	if (egl->exts.WL_bind_wayland_display && egl->wl_display)
+++		egl->procs.eglUnbindWaylandDisplayWL(egl->display, egl->wl_display);
+++
++ 	eglMakeCurrent(egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
++ 	eglDestroyContext(egl->display, egl->context);
++ 
++@@ -697,6 +713,22 @@ bool wlr_egl_restore_context(struct wlr_egl_context *context) {
++ 			context->read_surface, context->context);
++ }
++ 
+++EGLImageKHR wlr_egl_create_image_from_eglbuf(struct wlr_egl *egl,
+++		struct wlr_egl_buffer *buffer) {
+++	const EGLint attribs[] = {
+++		EGL_WAYLAND_PLANE_WL, 0,
+++		EGL_IMAGE_PRESERVED_KHR, EGL_TRUE,
+++		EGL_NONE
+++	};
+++
+++	EGLImageKHR image = egl->procs.eglCreateImageKHR(egl->display, EGL_NO_CONTEXT,
+++		EGL_WAYLAND_BUFFER_WL, buffer->resource, attribs);
+++	if (image == EGL_NO_IMAGE_KHR) {
+++		wlr_log(WLR_ERROR, "eglCreateImageKHR failed");
+++	}
+++	return image;
+++}
+++
++ EGLImageKHR wlr_egl_create_image_from_dmabuf(struct wlr_egl *egl,
++ 		struct wlr_dmabuf_attributes *attributes, bool *external_only) {
++ 	if (!egl->exts.KHR_image_base || !egl->exts.EXT_image_dma_buf_import) {
++diff --git a/render/gles2/renderer.c b/render/gles2/renderer.c
++index 215a5e45..607aa9db 100644
++--- a/render/gles2/renderer.c
+++++ b/render/gles2/renderer.c
++@@ -14,6 +14,7 @@
++ #include <wlr/render/interface.h>
++ #include <wlr/render/wlr_renderer.h>
++ #include <wlr/types/wlr_matrix.h>
+++#include <wlr/types/wlr_egl_buffer.h>
++ #include <wlr/util/box.h>
++ #include <wlr/util/log.h>
++ #include "render/egl.h"
++@@ -646,8 +647,15 @@ static void gles2_render_timer_destroy(struct wlr_render_timer *wlr_timer) {
++ 	free(timer);
++ }
++ 
+++static bool gles2_bind_wl_display(struct wlr_renderer *wlr_renderer,
+++				  struct wl_display *wl_display) {
+++	struct wlr_gles2_renderer *renderer = gles2_get_renderer(wlr_renderer);
+++	return wlr_egl_bind_wl_display(renderer->egl, wl_display);
+++}
+++
++ static const struct wlr_renderer_impl renderer_impl = {
++ 	.destroy = gles2_destroy,
+++	.bind_wl_display = gles2_bind_wl_display,
++ 	.bind_buffer = gles2_bind_buffer,
++ 	.begin = gles2_begin,
++ 	.end = gles2_end,
++diff --git a/render/gles2/texture.c b/render/gles2/texture.c
++index b444745c..b76ad1c4 100644
++--- a/render/gles2/texture.c
+++++ b/render/gles2/texture.c
++@@ -10,6 +10,7 @@
++ #include <wlr/render/interface.h>
++ #include <wlr/render/wlr_texture.h>
++ #include <wlr/types/wlr_matrix.h>
+++#include <wlr/types/wlr_egl_buffer.h>
++ #include <wlr/util/log.h>
++ #include "render/egl.h"
++ #include "render/gles2.h"
++@@ -308,6 +309,51 @@ static struct wlr_texture *gles2_texture_from_dmabuf(
++ 	return &texture->wlr_texture;
++ }
++ 
+++static struct wlr_texture *gles2_texture_from_eglbuf(
+++		struct wlr_renderer *wlr_renderer,
+++		struct wlr_egl_buffer *buffer) {
+++	struct wlr_gles2_renderer *renderer = gles2_get_renderer(wlr_renderer);
+++	EGLImageKHR image = wlr_egl_create_image_from_eglbuf(renderer->egl, buffer);
+++	if (image == EGL_NO_IMAGE_KHR) {
+++		wlr_log(WLR_ERROR, "Failed to create EGL image from wl_buffer resource");
+++		return NULL;
+++	}
+++
+++	if (!renderer->procs.glEGLImageTargetTexture2DOES) {
+++		return NULL;
+++	}
+++
+++	struct wlr_gles2_texture *texture =
+++		gles2_texture_create(renderer, buffer->base.width, buffer->base.height);
+++	if (texture == NULL) {
+++		return NULL;
+++	}
+++	texture->drm_format = DRM_FORMAT_INVALID; // texture can't be written anyways
+++
+++	struct wlr_egl_context prev_ctx;
+++	wlr_egl_save_context(&prev_ctx);
+++	wlr_egl_make_current(renderer->egl);
+++
+++	texture->has_alpha = buffer->has_alpha;
+++	texture->image = image;
+++	texture->target = GL_TEXTURE_EXTERNAL_OES;
+++
+++	push_gles2_debug(renderer);
+++
+++	glGenTextures(1, &texture->tex);
+++	glBindTexture(texture->target, texture->tex);
+++	glTexParameteri(texture->target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+++	glTexParameteri(texture->target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+++	renderer->procs.glEGLImageTargetTexture2DOES(texture->target, texture->image);
+++	glBindTexture(texture->target, 0);
+++
+++	pop_gles2_debug(renderer);
+++
+++	wlr_egl_restore_context(&prev_ctx);
+++
+++	return &texture->wlr_texture;
+++}
+++
++ static void texture_handle_buffer_destroy(struct wlr_addon *addon) {
++ 	struct wlr_gles2_texture *texture =
++ 		wl_container_of(addon, texture, buffer_addon);
++@@ -349,6 +395,36 @@ static struct wlr_texture *gles2_texture_from_dmabuf_buffer(
++ 	return &texture->wlr_texture;
++ }
++ 
+++static struct wlr_texture *gles2_texture_from_eglbuf_buffer(
+++		struct wlr_gles2_renderer *renderer, struct wlr_buffer *buffer,
+++		struct wlr_egl_buffer *eglbuf) {
+++	struct wlr_addon *addon =
+++		wlr_addon_find(&buffer->addons, renderer, &texture_addon_impl);
+++	if (addon != NULL) {
+++		struct wlr_gles2_texture *texture =
+++			wl_container_of(addon, texture, buffer_addon);
+++		if (!gles2_texture_invalidate(texture)) {
+++			wlr_log(WLR_ERROR, "Failed to invalidate texture");
+++			return false;
+++		}
+++		wlr_buffer_lock(texture->buffer);
+++		return &texture->wlr_texture;
+++	}
+++
+++	struct wlr_texture *wlr_texture =
+++		gles2_texture_from_eglbuf(&renderer->wlr_renderer, eglbuf);
+++	if (wlr_texture == NULL) {
+++		return false;
+++	}
+++
+++	struct wlr_gles2_texture *texture = gles2_get_texture(wlr_texture);
+++	texture->buffer = wlr_buffer_lock(buffer);
+++	wlr_addon_init(&texture->buffer_addon, &buffer->addons,
+++		renderer, &texture_addon_impl);
+++
+++	return &texture->wlr_texture;
+++}
+++
++ struct wlr_texture *gles2_texture_from_buffer(struct wlr_renderer *wlr_renderer,
++ 		struct wlr_buffer *buffer) {
++ 	struct wlr_gles2_renderer *renderer = gles2_get_renderer(wlr_renderer);
++@@ -357,8 +433,11 @@ struct wlr_texture *gles2_texture_from_buffer(struct wlr_renderer *wlr_renderer,
++ 	uint32_t format;
++ 	size_t stride;
++ 	struct wlr_dmabuf_attributes dmabuf;
+++	struct wlr_egl_buffer *eglbuf;
++ 	if (wlr_buffer_get_dmabuf(buffer, &dmabuf)) {
++ 		return gles2_texture_from_dmabuf_buffer(renderer, buffer, &dmabuf);
+++	} else if ((eglbuf = wlr_buffer_to_egl(buffer))) {
+++		return gles2_texture_from_eglbuf_buffer(renderer, buffer, eglbuf);
++ 	} else if (wlr_buffer_begin_data_ptr_access(buffer,
++ 			WLR_BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride)) {
++ 		struct wlr_texture *tex = gles2_texture_from_pixels(wlr_renderer,
++diff --git a/render/wlr_renderer.c b/render/wlr_renderer.c
++index 2bdcff5a..dd12424d 100644
++--- a/render/wlr_renderer.c
+++++ b/render/wlr_renderer.c
++@@ -219,6 +219,12 @@ bool wlr_renderer_read_pixels(struct wlr_renderer *r, uint32_t fmt,
++ 
++ bool wlr_renderer_init_wl_shm(struct wlr_renderer *r,
++ 		struct wl_display *wl_display) {
+++	// The sway would call us directly instead of wlr_renderer_init_wl_display
+++	if (r->impl->bind_wl_display &&
+++	    !r->impl->bind_wl_display(r, wl_display)) {
+++		return false;
+++	}
+++
++ 	return wlr_shm_create_with_renderer(wl_display, 1, r) != NULL;
++ }
++ 
++diff --git a/types/meson.build b/types/meson.build
++index ba41e3e2..ff1e97f7 100644
++--- a/types/meson.build
+++++ b/types/meson.build
++@@ -55,6 +55,7 @@ wlr_files += files(
++ 	'wlr_keyboard_shortcuts_inhibit_v1.c',
++ 	'wlr_layer_shell_v1.c',
++ 	'wlr_linux_dmabuf_v1.c',
+++	'wlr_egl_buffer.c',
++ 	'wlr_matrix.c',
++ 	'wlr_output_layer.c',
++ 	'wlr_output_layout.c',
++diff --git a/types/wlr_egl_buffer.c b/types/wlr_egl_buffer.c
++new file mode 100644
++index 00000000..62e4109c
++--- /dev/null
+++++ b/types/wlr_egl_buffer.c
++@@ -0,0 +1,153 @@
+++#define _POSIX_C_SOURCE 200809L
+++#include <assert.h>
+++#include <drm_fourcc.h>
+++#include <fcntl.h>
+++#include <stdlib.h>
+++#include <sys/mman.h>
+++#include <unistd.h>
+++#include <wlr/backend.h>
+++#include <wlr/interfaces/wlr_buffer.h>
+++#include <wlr/render/wlr_renderer.h>
+++#include <wlr/render/egl.h>
+++#include <wlr/types/wlr_egl_buffer.h>
+++#include <wlr/util/log.h>
+++#include <xf86drm.h>
+++#include "render/drm_format_set.h"
+++#include "render/egl.h"
+++#include "util/shm.h"
+++
+++
+++static void egl_buffer_destroy(struct wlr_buffer *wlr_buffer) {
+++	struct wlr_egl_buffer *buffer =
+++		wl_container_of(wlr_buffer, buffer, base);
+++	wl_list_remove(&buffer->resource_destroy.link);
+++	wl_list_remove(&buffer->release.link);
+++	free(buffer);
+++}
+++
+++static const struct wlr_buffer_impl egl_buffer_impl = {
+++	.destroy = egl_buffer_destroy,
+++};
+++
+++struct wlr_egl_buffer *wlr_buffer_to_egl(struct wlr_buffer *buffer) {
+++	if (buffer->impl != &egl_buffer_impl)
+++		return NULL;
+++
+++	return (struct wlr_egl_buffer *)buffer;
+++}
+++
+++static void egl_buffer_resource_handle_destroy(
+++		struct wl_listener *listener, void *data) {
+++	struct wlr_egl_buffer *buffer =
+++		wl_container_of(listener, buffer, resource_destroy);
+++
+++	buffer->resource = NULL;
+++	wl_list_remove(&buffer->resource_destroy.link);
+++	wl_list_init(&buffer->resource_destroy.link);
+++
+++	wlr_buffer_drop(&buffer->base);
+++}
+++
+++static void egl_buffer_handle_release(struct wl_listener *listener,
+++		void *data) {
+++	struct wlr_egl_buffer *buffer =
+++		wl_container_of(listener, buffer, release);
+++	if (buffer->resource != NULL) {
+++		wl_buffer_send_release(buffer->resource);
+++	}
+++}
+++
+++static bool egl_buffer_resource_is_instance(struct wl_resource *resource) {
+++	struct wlr_egl *egl = wlr_egl_buffer_egl;
+++	if (!egl || !egl->exts.WL_bind_wayland_display)
+++		return false;
+++
+++	EGLint fmt;
+++	return egl->procs.eglQueryWaylandBufferWL(egl->display,
+++		resource, EGL_TEXTURE_FORMAT, &fmt);
+++}
+++
+++static struct wlr_buffer *egl_buffer_from_resource(struct wl_resource *resource) {
+++	struct wlr_egl *egl = wlr_egl_buffer_egl;
+++	if (!egl || !egl->exts.WL_bind_wayland_display)
+++		return NULL;
+++
+++	struct wl_listener *resource_destroy_listener =
+++		wl_resource_get_destroy_listener(resource,
+++		egl_buffer_resource_handle_destroy);
+++	if (resource_destroy_listener != NULL) {
+++		struct wlr_egl_buffer *buffer =
+++			wl_container_of(resource_destroy_listener, buffer, resource_destroy);
+++		return &buffer->base;
+++	}
+++
+++	EGLint fmt;
+++	int width, height;
+++
+++	if (!egl->procs.eglQueryWaylandBufferWL(egl->display,
+++		resource, EGL_TEXTURE_FORMAT, &fmt))
+++		return NULL;
+++
+++	if (!egl->procs.eglQueryWaylandBufferWL(egl->display,
+++		resource, EGL_WIDTH, &width))
+++		return NULL;
+++
+++	if (!egl->procs.eglQueryWaylandBufferWL(egl->display,
+++		resource, EGL_HEIGHT, &height))
+++		return NULL;
+++
+++	struct wlr_egl_buffer *buffer = calloc(1, sizeof(*buffer));
+++	if (!buffer)
+++		return NULL;
+++
+++	wlr_buffer_init(&buffer->base, &egl_buffer_impl, width, height);
+++
+++	buffer->resource = resource;
+++
+++	buffer->resource_destroy.notify = egl_buffer_resource_handle_destroy;
+++	wl_resource_add_destroy_listener(resource, &buffer->resource_destroy);
+++
+++	buffer->release.notify = egl_buffer_handle_release;
+++	wl_signal_add(&buffer->base.events.release, &buffer->release);
+++
+++	switch (fmt) {
+++	case EGL_TEXTURE_RGB:
+++		buffer->has_alpha = false;
+++		break;
+++	case EGL_TEXTURE_RGBA:
+++	case EGL_TEXTURE_EXTERNAL_WL:
+++		buffer->has_alpha = true;
+++		break;
+++	default:
+++		wlr_log(WLR_ERROR, "Invalid or unsupported EGL buffer format");
+++		goto error;
+++	}
+++
+++	return &buffer->base;
+++error:
+++	wlr_buffer_drop(&buffer->base);
+++	return NULL;
+++}
+++
+++static struct wlr_buffer_resource_interface egl_buffer_resource_interface = {
+++	.name = "wlr_egl_buffer",
+++	.is_instance = egl_buffer_resource_is_instance,
+++	.from_resource = egl_buffer_from_resource,
+++};
+++
+++void egl_buffer_register(struct wlr_egl *egl) {
+++	wlr_egl_buffer_egl = egl;
+++	wlr_buffer_register_resource_interface(&egl_buffer_resource_interface);
+++};
+++
+++bool wlr_egl_bind_wl_display(struct wlr_egl *egl, struct wl_display *wl_display) {
+++	if (!egl->exts.WL_bind_wayland_display)
+++		return true;
+++
+++	if (!egl->procs.eglBindWaylandDisplayWL(egl->display, wl_display))
+++		return false;
+++
+++	egl->wl_display = wl_display;
+++	return true;
+++}
+++
+diff --git a/packages/wayland/lib/wlroots/patches/0005-HACK-render-egl-Extract-dmabuf-from-mali-shared-EGL-.patch b/packages/wayland/lib/wlroots/patches/0005-HACK-render-egl-Extract-dmabuf-from-mali-shared-EGL-.patch
+new file mode 100644
+index 000000000..be57defac
+--- /dev/null
++++ b/packages/wayland/lib/wlroots/patches/0005-HACK-render-egl-Extract-dmabuf-from-mali-shared-EGL-.patch
+@@ -0,0 +1,71 @@
++commit 7ca52092fa9e5267e1df8508901658cfd4505332
++Author: Jeffy Chen <jeffy.chen@rock-chips.com>
++Date:   Thu Apr 25 10:24:07 2024 +0300
++
++    HACK: render: egl: Extract dmabuf from mali shared EGL wl_buffer
++    
++    For scanning out fullscreen view.
++
++diff --git a/types/wlr_egl_buffer.c b/types/wlr_egl_buffer.c
++index 62e4109c..264f7e4b 100644
++--- a/types/wlr_egl_buffer.c
+++++ b/types/wlr_egl_buffer.c
++@@ -17,6 +17,50 @@
++ #include "util/shm.h"
++ 
++ 
+++
+++static bool egl_buffer_get_dmabuf(struct wlr_buffer *wlr_buffer,
+++		struct wlr_dmabuf_attributes *attribs) {
+++	struct wlr_egl_buffer *buffer =
+++		wl_container_of(wlr_buffer, buffer, base);
+++
+++	/* HACK: It's a guessed struct for mali_buffer_sharing extension */
+++	struct mali_buffer_sharing_info {
+++		int fd;
+++		int width;
+++		int height;
+++		int stride;
+++		uint32_t fourcc;
+++	};
+++
+++	struct mali_buffer_sharing_info *info =
+++		wl_resource_get_user_data(buffer->resource);
+++	if (!info) {
+++		return false;
+++	}
+++
+++	/* Check it carefully! */
+++	struct stat s;
+++	if (fstat(info->fd, &s) < 0 ||
+++		s.st_size < (wlr_buffer->width * wlr_buffer->height) ||
+++		info->width != wlr_buffer->width ||
+++		info->height != wlr_buffer->height ||
+++		info->stride < wlr_buffer->width) {
+++		return false;
+++	}
+++
+++	attribs->width = wlr_buffer->width;
+++	attribs->height = wlr_buffer->height;
+++	attribs->modifier = DRM_FORMAT_MOD_INVALID;
+++	attribs->n_planes = 1;
+++	attribs->offset[0] = 0;
+++
+++	attribs->stride[0] = info->stride;
+++	attribs->fd[0] = info->fd;
+++	attribs->format = info->fourcc;
+++
+++	return true;
+++}
+++
++ static void egl_buffer_destroy(struct wlr_buffer *wlr_buffer) {
++ 	struct wlr_egl_buffer *buffer =
++ 		wl_container_of(wlr_buffer, buffer, base);
++@@ -26,6 +70,7 @@ static void egl_buffer_destroy(struct wlr_buffer *wlr_buffer) {
++ }
++ 
++ static const struct wlr_buffer_impl egl_buffer_impl = {
+++	.get_dmabuf = egl_buffer_get_dmabuf,
++ 	.destroy = egl_buffer_destroy,
++ };
++ 
+diff --git a/packages/wayland/lib/wlroots/patches/0006-fix-missing-glGetInteger64vEXT.patch b/packages/wayland/lib/wlroots/patches/0006-fix-missing-glGetInteger64vEXT.patch
+new file mode 100644
+index 000000000..7c68a2cbc
+--- /dev/null
++++ b/packages/wayland/lib/wlroots/patches/0006-fix-missing-glGetInteger64vEXT.patch
+@@ -0,0 +1,32 @@
++commit df8b1f08993b324754d69e94de3ecf6c1eef350b
++Author: Guido Günther <agx@sigxcpu.org>
++Date:   Tue Mar 12 10:38:21 2024 +0100
++
++    gles2: Avoid crash when glGetInteger64vEXT is missing
++    
++    The spec for GL_EXT_disjoint_timer_query says
++    
++    > The GetInteger64vEXT command is required only if OpenGL ES 3.0 or later
++    > is not supported.
++    
++    Some GLES 3.2 implementations like the proprietary mali driver on the
++    rk3566 based OrangePi advertise GL_EXT_disjoint_timer_query but lack
++    glGetInteger64vEXT. Use glGetInteger64v instead.
++
++diff --git a/render/gles2/renderer.c b/render/gles2/renderer.c
++index 1394f65b..2b605232 100644
++--- a/render/gles2/renderer.c
+++++ b/render/gles2/renderer.c
++@@ -922,7 +922,11 @@ struct wlr_renderer *wlr_gles2_renderer_create(struct wlr_egl *egl) {
++ 		load_gl_proc(&renderer->procs.glQueryCounterEXT, "glQueryCounterEXT");
++ 		load_gl_proc(&renderer->procs.glGetQueryObjectivEXT, "glGetQueryObjectivEXT");
++ 		load_gl_proc(&renderer->procs.glGetQueryObjectui64vEXT, "glGetQueryObjectui64vEXT");
++-		load_gl_proc(&renderer->procs.glGetInteger64vEXT, "glGetInteger64vEXT");
+++		if (eglGetProcAddress("glGetInteger64vEXT")) {
+++			load_gl_proc(&renderer->procs.glGetInteger64vEXT, "glGetInteger64vEXT");
+++		} else {
+++			load_gl_proc(&renderer->procs.glGetInteger64vEXT, "glGetInteger64v");
+++		}
++ 	}
++ 
++ 	if (renderer->exts.KHR_debug) {
+
+From e64925a470b8fdcc499583e6c46076e0b7eafc70 Mon Sep 17 00:00:00 2001
+From: Danil Zagoskin <z@gosk.in>
+Date: Sat, 27 Apr 2024 14:50:38 +0300
+Subject: [PATCH 5/6] RK3566: user-selectable GPU driver panfrost/libmali
+
+---
+ projects/Rockchip/devices/RK3566-X55/options |  9 +++++----
+ projects/Rockchip/devices/RK3566/options     | 10 +++++-----
+ 2 files changed, 10 insertions(+), 9 deletions(-)
+
+diff --git a/projects/Rockchip/devices/RK3566-X55/options b/projects/Rockchip/devices/RK3566-X55/options
+index 59f1f3cf2..8b4eec93d 100644
+--- a/projects/Rockchip/devices/RK3566-X55/options
++++ b/projects/Rockchip/devices/RK3566-X55/options
+@@ -52,10 +52,11 @@
+  
+   # Mali GPU family
+     MALI_FAMILY="bifrost-g52"
+-    GRAPHIC_DRIVERS="panfrost"
++    MALI_VERSION="g13p0"
++    GRAPHIC_DRIVERS="mali panfrost"
+ 
+   # OpenGL(X) implementation to use (mesa / no)
+-    OPENGL="mesa"
++    OPENGL=""
+ 
+   # OpenGL-ES implementation to use (mesa / no)
+     OPENGLES="mesa"
+@@ -76,7 +77,7 @@
+     EXTRA_CMDLINE="quiet rootwait earlycon=uart8250,mmio32,0xfe660000 console=ttyS2,1500000n8 console=tty1 ssh consoleblank=0 systemd.show_status=0 loglevel=0 panic=20"
+ 
+   # additional packages to install
+-  #  ADDITIONAL_PACKAGES=""
++    ADDITIONAL_PACKAGES="libmali"
+ 
+   # additional Firmware to use ( )
+   # Space separated list is supported,
+@@ -87,7 +88,7 @@
+   # for a list of additional drivers see packages/linux-drivers
+   # Space separated list is supported,
+   # e.g. ADDITIONAL_DRIVERS="DRIVER1 DRIVER2"
+-  ADDITIONAL_DRIVERS="rocknix-joypad"
++  ADDITIONAL_DRIVERS="rocknix-joypad mali-bifrost"
+ 
+   # Some devices have internal storage.
+     INSTALLER_SUPPORT="no"
+diff --git a/projects/Rockchip/devices/RK3566/options b/projects/Rockchip/devices/RK3566/options
+index 6535aeb62..9cbbf5e28 100644
+--- a/projects/Rockchip/devices/RK3566/options
++++ b/projects/Rockchip/devices/RK3566/options
+@@ -52,10 +52,11 @@
+  
+   # Mali GPU family
+     MALI_FAMILY="bifrost-g52"
+-    GRAPHIC_DRIVERS="panfrost"
++    MALI_VERSION="g13p0"
++    GRAPHIC_DRIVERS="mali panfrost"
+ 
+   # OpenGL(X) implementation to use (mesa / no)
+-    OPENGL="mesa"
++    OPENGL=""
+ 
+   # OpenGL-ES implementation to use (mesa / no)
+     OPENGLES="mesa"
+@@ -76,7 +77,7 @@
+     EXTRA_CMDLINE="quiet rootwait earlycon=uart8250,mmio32,0xfe660000 console=ttyS2,1500000n8 console=tty1 ssh consoleblank=0 systemd.show_status=0 loglevel=0 panic=20"
+ 
+   # additional packages to install
+-    ADDITIONAL_PACKAGES=""
++    ADDITIONAL_PACKAGES="libmali"
+ 
+   # additional Firmware to use ( )
+   # Space separated list is supported,
+@@ -87,8 +88,7 @@
+   # for a list of additional drivers see packages/linux-drivers
+   # Space separated list is supported,
+   # e.g. ADDITIONAL_DRIVERS="DRIVER1 DRIVER2"
+-    ADDITIONAL_DRIVERS="RTL8812AU RTL8814AU RTL8821AU RTL8821CU RTL88x2BU"
+-    ADDITIONAL_DRIVERS+=" mali-bifrost"
++    ADDITIONAL_DRIVERS="RTL8812AU RTL8814AU RTL8821AU RTL8821CU RTL88x2BU mali-bifrost"
+ 
+   # Some devices have internal storage.
+     INSTALLER_SUPPORT="no"
+

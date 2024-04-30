@@ -1,0 +1,13 @@
+diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+index 58e7335..0029e66 100644
+--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
++++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+@@ -891,7 +891,7 @@ static int assign_irqs(struct platform_device *pdev)
+ 		struct resource *irq_res;
+ 		int irqtag;
+ 
+-		irq_res = platform_get_resource(pdev, IORESOURCE_IRQ, i);
++		irq_res = platform_get_irq(pdev, i);
+ 		if (!irq_res) {
+ 			dev_err(kbdev->dev, "No IRQ resource at index %d\n", i);
+ 			return -ENOENT;
