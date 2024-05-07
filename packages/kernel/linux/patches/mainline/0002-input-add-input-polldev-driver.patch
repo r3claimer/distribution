@@ -1,7 +1,7 @@
-From 2f3e05182321bd7e6b8ad2335f1ed0751f006918 Mon Sep 17 00:00:00 2001
+From d03ac59196d7a5f38a03c20b1f8aeba5d5ba14a7 Mon Sep 17 00:00:00 2001
 From: brooksytech <1673861+brooksytech@users.noreply.github.com>
 Date: Wed, 24 Jan 2024 21:50:05 +0000
-Subject: [PATCH 10/44] input: add input-polldev driver
+Subject: [PATCH] input: add input-polldev driver
 
 ---
  drivers/input/Kconfig         |  13 ++
