@@ -56,12 +56,15 @@
     GRAPHIC_DRIVERS="mali panfrost"
 
   # OpenGL(X) implementation to use (mesa / no)
-    OPENGL=""
+    OPENGL="mesa"
+
+  # For maximum cross compatbility
+    PREFER_GLES="yes"
 
   # OpenGL-ES implementation to use (mesa / no)
     OPENGLES="mesa"
 
-  # Displayserver to use (weston / x11 / no)
+  # Displayserver to use (wl / no)
     DISPLAYSERVER="wl"
 
   # Windowmanager to use (weston / swaywm-env / no)
@@ -69,6 +72,9 @@
   
   # kernel serial console
     EXTRA_CMDLINE="quiet rootwait console=ttyFIQ0 console=tty0 ssh consoleblank=0 systemd.show_status=0 loglevel=0 panic=20"
+
+  # build and install rocknix joypad driver (yes / no)
+    ROCKNIX_JOYPAD="yes"
 
   # additional packages to install
     ADDITIONAL_PACKAGES="device-switch libmali"

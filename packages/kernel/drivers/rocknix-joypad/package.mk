@@ -2,7 +2,7 @@
 # Copyright (C) 2024 ROCKNIX (https://github.com/ROCKNIX)
 
 PKG_NAME="rocknix-joypad"
-PKG_VERSION="38ec995c8516ad39544b85026876b0215fb16544"
+PKG_VERSION="b7b874fdb37fdc88a7e89b6e2ccc93eb9b27c5d2"
 PKG_LICENSE="GPL"
 PKG_SITE="https://github.com/ROCKNIX/rocknix-joypad"
 PKG_URL="${PKG_SITE}/archive/${PKG_VERSION}.tar.gz"
@@ -11,6 +11,7 @@ PKG_DEPENDS_TARGET="toolchain linux"
 PKG_NEED_UNPACK="${LINUX_DEPENDS}"
 PKG_TOOLCHAIN="manual"
 PKG_IS_KERNEL_PKG="yes"
+PKG_PATCH_DIRS="${DEVICE}"
 
 pre_make_target() {
   unset LDFLAGS
