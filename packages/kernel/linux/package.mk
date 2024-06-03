@@ -24,11 +24,11 @@ case ${DEVICE} in
     PKG_URL="https://www.kernel.org/pub/linux/kernel/v${PKG_VERSION/.*/}.x/${PKG_NAME}-${PKG_VERSION}.tar.xz"
     PKG_PATCH_DIRS+=" mainline"
     ;;
-  RK3588)
-    PKG_VERSION="494c0a303537c55971421b5552d98eb55e652cf3"
-    PKG_URL="https://github.com/armbian/linux-rockchip/archive/${PKG_VERSION}.tar.gz"
-    PKG_GIT_CLONE_BRANCH="rk-5.10-rkr6"
-    ;;
+  RK3588*)
+    PKG_VERSION="6a2f44f4d0ac3aa90ac5050138d08b46118da9cd"
+    PKG_URL="https://github.com/hbiyik/linux-rockchip/archive/${PKG_VERSION}.tar.gz"
+    PKG_GIT_CLONE_BRANCH="rk-6.1-rkr1-panthor-v6"
+  ;;
   H700)
     PKG_VERSION="6c522e1c85a07e2e0db113a979c0a404eb692de1"
     PKG_URL="https://git.sr.ht/~tokyovigilante/linux/archive/${PKG_VERSION}.tar.gz"
