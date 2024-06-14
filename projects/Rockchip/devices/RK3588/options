@@ -66,10 +66,10 @@
     DISPLAYSERVER="wl"
 
   # Windowmanager to use (weston / swaywm-env / no)
-    WINDOWMANAGER="weston"
+    WINDOWMANAGER="swaywm-env"
   
   # kernel serial console
-    EXTRA_CMDLINE="rootwait quiet systemd.debug_shell=ttyFIQ0 earlycon=uart8250,mmio32,0xfeb50000 console=ttyFIQ0 console=tty0 coherent_pool=2M fbcon=rotate:1"
+    EXTRA_CMDLINE="rootwait quiet systemd.debug_shell=ttyFIQ0 earlycon=uart8250,mmio32,0xfeb50000 console=ttyFIQ0 console=tty0 coherent_pool=2M"
 
   # build and install rocknix joypad driver (yes / no)
     ROCKNIX_JOYPAD="yes"
@@ -80,7 +80,7 @@
   # additional Firmware to use ( )
   # Space separated list is supported,
   # e.g. FIRMWARE=""
-    FIRMWARE="RTL8821CS-firmware ap6256-firmware g610-mali-csffw iwlwifi-firmware ibt-firmware"
+   FIRMWARE="RTL8821CS-firmware ap6256-firmware g610-mali-csffw iwlwifi-firmware ibt-firmware"
 
   # additional drivers to install:
   # for a list of additional drivers see packages/linux-drivers
