@@ -5,7 +5,7 @@
 
 PKG_NAME="xwayland"
 PKG_VERSION="1126d55f80fb681747d27180f480bb207f50e751"
-PKG_LICENSE="OSS"
+PKG_LICENSE="SGI"
 PKG_SITE="https://gitlab.freedesktop.org/xorg/xserver"
 PKG_URL="${PKG_SITE}.git"
 PKG_GIT_CLONE_BRANCH="xwayland-24.1"
