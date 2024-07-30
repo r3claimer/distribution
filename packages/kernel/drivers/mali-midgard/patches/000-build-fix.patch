@@ -1,0 +1,405 @@
+From 65df8d090cfeff8a692008e20f2241f7d325e267 Mon Sep 17 00:00:00 2001
+	From: Geraldo Nascimento <geraldogabriel@gmail.com>
+	Date: Fri, 1 Sep 2023 00:50:56 -0300
+	Subject: [PATCH 1/1] Very hacky, tentative support for Linux v6.5.0 (Mainline)
+
+	---
+	 .../kernel/drivers/gpu/arm/midgard/Makefile   |  5 +-
+	 .../backend/gpu/mali_kbase_irq_linux.c        | 16 +---
+	 .../gpu/arm/midgard/mali_kbase_core_linux.c   | 15 +--
+	 .../drivers/gpu/arm/midgard/mali_kbase_defs.h |  4 +-
+	 .../drivers/gpu/arm/midgard/mali_kbase_mem.c  |  2 +-
+	 .../gpu/arm/midgard/mali_kbase_mem_linux.c    | 38 ++++----
+	 .../gpu/arm/midgard/mali_kbase_mem_pool.c     |  2 +-
+	 .../arm/midgard/thirdparty/mali_kbase_mmap.c  | 91 ++-----------------
+	 8 files changed, 47 insertions(+), 126 deletions(-)
+
+	diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/Makefile b/driver/product/kernel/drivers/gpu/arm/midgard/Makefile
+	index 08b2fa9..22929b6 100644
+	--- a/driver/product/kernel/drivers/gpu/arm/midgard/Makefile
+	+++ b/driver/product/kernel/drivers/gpu/arm/midgard/Makefile
+	@@ -20,7 +20,8 @@
+	 #
+
+
+	-KDIR ?= /lib/modules/$(shell uname -r)/build
+	+#KDIR ?= /lib/modules/$(shell uname -r)/build
+	+KDIR=/usr/src/linux
+
+	 BUSLOG_PATH_RELATIVE = $(CURDIR)/../../../..
+	 KBASE_PATH_RELATIVE = $(CURDIR)
+	@@ -32,7 +33,7 @@ endif
+
+	 # we get the symbols from modules using KBUILD_EXTRA_SYMBOLS to prevent warnings about unknown functions
+	 all:
+	-	$(MAKE) -C $(KDIR) M=$(CURDIR) EXTRA_CFLAGS="-I$(CURDIR)/../../../../include -I$(CURDIR)/../../../../tests/include $(SCONS_CFLAGS)" $(SCONS_CONFIGS) KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" modules
+	+	$(MAKE) -C $(KDIR) M=$(CURDIR) EXTRA_CFLAGS="-I$(CURDIR)/../../../../include"  KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" CONFIG_MALI_MIDGARD=m CONFIG_MALI_PLATFORM_NAME=rk modules
+
+	 clean:
+	 	$(MAKE) -C $(KDIR) M=$(CURDIR) clean
+	diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_irq_linux.c b/driver/product/kernel/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_irq_linux.c
+	index dd0279a..5b4b405 100644
+	--- a/driver/product/kernel/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_irq_linux.c
+	+++ b/driver/product/kernel/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_irq_linux.c
+	@@ -426,8 +426,8 @@ int kbase_install_interrupts(struct kbase_device *kbdev)
+	 	u32 i;
+
+	 	for (i = 0; i < nr; i++) {
+	-		err = request_irq(kbdev->irqs[i].irq, kbase_handler_table[i],
+	-				kbdev->irqs[i].flags | IRQF_SHARED,
+	+		err = devm_request_irq(kbdev->dev, kbdev->irqs[i].irq, kbase_handler_table[i],
+	+				0,
+	 				dev_name(kbdev->dev),
+	 				kbase_tag(kbdev, i));
+	 		if (err) {
+	@@ -436,17 +436,11 @@ int kbase_install_interrupts(struct kbase_device *kbdev)
+	 #ifdef CONFIG_SPARSE_IRQ
+	 			dev_err(kbdev->dev, "You have CONFIG_SPARSE_IRQ support enabled - is the interrupt number correct for this configuration?\n");
+	 #endif /* CONFIG_SPARSE_IRQ */
+	-			goto release;
+	+			return err;
+	 		}
+	 	}
+
+	 	return 0;
+	-
+	- release:
+	-	while (i-- > 0)
+	-		free_irq(kbdev->irqs[i].irq, kbase_tag(kbdev, i));
+	-
+	-	return err;
+	 }
+
+	 void kbase_release_interrupts(struct kbase_device *kbdev)
+	@@ -454,10 +448,10 @@ void kbase_release_interrupts(struct kbase_device *kbdev)
+	 	u32 nr = ARRAY_SIZE(kbase_handler_table);
+	 	u32 i;
+
+	-	for (i = 0; i < nr; i++) {
+	+	/*for (i = 0; i < nr; i++) {
+	 		if (kbdev->irqs[i].irq)
+	 			free_irq(kbdev->irqs[i].irq, kbase_tag(kbdev, i));
+	-	}
+	+	}*/
+	 }
+
+	 void kbase_synchronize_irqs(struct kbase_device *kbdev)
+	diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+	index 58e7335..ee0d6fe 100644
+	--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+	+++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+	@@ -888,16 +888,16 @@ static int assign_irqs(struct platform_device *pdev)
+
+	 	/* 3 IRQ resources */
+	 	for (i = 0; i < 3; i++) {
+	-		struct resource *irq_res;
+	+		int irq_res;
+	 		int irqtag;
+
+	-		irq_res = platform_get_resource(pdev, IORESOURCE_IRQ, i);
+	-		if (!irq_res) {
+	+		irq_res = platform_get_irq(pdev, i);
+	+		if (irq_res < 0) {
+	 			dev_err(kbdev->dev, "No IRQ resource at index %d\n", i);
+	 			return -ENOENT;
+	 		}
+
+	-#ifdef CONFIG_OF
+	+/*#ifdef CONFIG_OF
+	 		if (!strncmp(irq_res->name, "job", 4)) {
+	 			irqtag = JOB_IRQ_TAG;
+	 		} else if (!strncmp(irq_res->name, "mmu", 4)) {
+	@@ -911,9 +911,10 @@ static int assign_irqs(struct platform_device *pdev)
+	 		}
+	 #else
+	 		irqtag = i;
+	-#endif /* CONFIG_OF */
+	-		kbdev->irqs[irqtag].irq = irq_res->start;
+	-		kbdev->irqs[irqtag].flags = irq_res->flags & IRQF_TRIGGER_MASK;
+	+#endif*/ /* CONFIG_OF */
+	+		irqtag = i;
+	+		kbdev->irqs[irqtag].irq = irq_res;
+	+		kbdev->irqs[irqtag].flags = 0;
+	 	}
+
+	 	return 0;
+	diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h
+	index 1836485..922dc70 100644
+	--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h
+	+++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h
+	@@ -1419,8 +1419,8 @@ struct kbase_device {
+	 	void __iomem *reg;
+
+	 	struct {
+	-		int irq;
+	-		int flags;
+	+		unsigned int irq;
+	+		unsigned long flags;
+	 	} irqs[3];
+
+	 	struct clk *clock;
+	diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem.c
+	index 04015e1..9415c97 100644
+	--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem.c
+	+++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem.c
+	@@ -3401,7 +3401,7 @@ static int kbase_jd_user_buf_map(struct kbase_context *kctx,
+	 			address,
+	 			alloc->imported.user_buf.nr_pages,
+	 			reg->flags & KBASE_REG_GPU_WR ? FOLL_WRITE : 0,
+	-			pages, NULL, NULL);
+	+			pages, NULL);
+	 #endif
+
+	 	if (pinned_pages <= 0)
+	diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_linux.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_linux.c
+	index 248fa12..58bf3be 100644
+	--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_linux.c
+	+++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_linux.c
+	@@ -640,7 +640,7 @@ int kbase_mem_evictable_init(struct kbase_context *kctx)
+	 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+	 	kctx->reclaim.batch = 0;
+	 #endif
+	-	register_shrinker(&kctx->reclaim);
+	+	register_shrinker(&kctx->reclaim, "mali_kbase");
+	 	return 0;
+	 }
+
+	@@ -1113,7 +1113,7 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
+	 #else
+	 	faulted_pages = get_user_pages(address, *va_pages,
+	 			reg->flags & KBASE_REG_GPU_WR ? FOLL_WRITE : 0,
+	-			pages, NULL);
+	+			pages);
+	 #endif
+
+	 	up_read(&current->mm->mmap_lock);
+	@@ -1827,11 +1827,7 @@ static int kbase_cpu_mmap(struct kbase_context *kctx,
+	 	 * See MIDBASE-1057
+	 	 */
+
+	-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0))
+	-	vma->vm_flags |= VM_DONTCOPY | VM_DONTDUMP | VM_DONTEXPAND | VM_IO;
+	-#else
+	-	vma->vm_flags |= VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED | VM_IO;
+	-#endif
+	+	vm_flags_set(vma, VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP | VM_IO);
+	 	vma->vm_ops = &kbase_vm_ops;
+	 	vma->vm_private_data = map;
+
+	@@ -1883,7 +1879,7 @@ static int kbase_cpu_mmap(struct kbase_context *kctx,
+	 	if (!kaddr) {
+	 		unsigned long addr = vma->vm_start + aligned_offset;
+
+	-		vma->vm_flags |= VM_PFNMAP;
+	+		vm_flags_set(vma, VM_PFNMAP);
+	 		for (i = 0; i < nr_pages; i++) {
+	 			phys_addr_t phys;
+
+	@@ -1898,7 +1894,7 @@ static int kbase_cpu_mmap(struct kbase_context *kctx,
+	 	} else {
+	 		WARN_ON(aligned_offset);
+	 		/* MIXEDMAP so we can vfree the kaddr early and not track it after map time */
+	-		vma->vm_flags |= VM_MIXEDMAP;
+	+		vm_flags_set(vma, VM_MIXEDMAP);
+	 		/* vmalloc remaping is easy... */
+	 		err = remap_vmalloc_range(vma, kaddr, 0);
+	 		WARN_ON(err);
+	@@ -2079,9 +2075,9 @@ int kbase_mmap(struct file *file, struct vm_area_struct *vma)
+	 	dev_dbg(dev, "kbase_mmap\n");
+
+	 	if (!(vma->vm_flags & VM_READ))
+	-		vma->vm_flags &= ~VM_MAYREAD;
+	+		vm_flags_clear(vma, VM_MAYREAD);
+	 	if (!(vma->vm_flags & VM_WRITE))
+	-		vma->vm_flags &= ~VM_MAYWRITE;
+	+		vm_flags_clear(vma, VM_MAYWRITE);
+
+	 	if (0 == nr_pages) {
+	 		err = -EINVAL;
+	@@ -2420,14 +2416,16 @@ void kbasep_os_process_page_usage_update(struct kbase_context *kctx, int pages)
+	 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0))
+	 		add_mm_counter(mm, MM_FILEPAGES, pages);
+	 #else
+	-		atomic_long_add(pages, &mm->rss_stat.count[MM_FILEPAGES]);
+	+		//atomic_long_add(pages, &mm->rss_stat.count[MM_FILEPAGES]);
+	+		percpu_counter_add(&mm->rss_stat[MM_FILEPAGES], pages);
+	 #endif
+	 #else
+	 		spin_lock(&mm->page_table_lock);
+	 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0))
+	 		add_mm_counter(mm, MM_FILEPAGES, pages);
+	 #else
+	-		atomic_long_add(pages, &mm->rss_stat.count[MM_FILEPAGES]);
+	+		//atomic_long_add(pages, &mm->rss_stat.count[MM_FILEPAGES]);
+	+		percpu_counter_add(&mm->rss_stat[MM_FILEPAGES], pages);
+	 #endif
+	 		spin_unlock(&mm->page_table_lock);
+	 #endif
+	@@ -2456,14 +2454,16 @@ static void kbasep_os_process_page_usage_drain(struct kbase_context *kctx)
+	 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0))
+	 	add_mm_counter(mm, MM_FILEPAGES, -pages);
+	 #else
+	-	atomic_long_add(pages, &mm->rss_stat.count[MM_FILEPAGES]);
+	+	//atomic_long_add(pages, &mm->rss_stat.count[MM_FILEPAGES]);
+	+	percpu_counter_add(&mm->rss_stat[MM_FILEPAGES], -pages);
+	 #endif
+	 #else
+	 	spin_lock(&mm->page_table_lock);
+	 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0))
+	 	add_mm_counter(mm, MM_FILEPAGES, -pages);
+	 #else
+	-	atomic_long_add(pages, &mm->rss_stat.count[MM_FILEPAGES]);
+	+	//atomic_long_add(pages, &mm->rss_stat.count[MM_FILEPAGES]);
+	+	percpu_counter_add(&mm->rss_stat[MM_FILEPAGES], -pages);
+	 #endif
+	 	spin_unlock(&mm->page_table_lock);
+	 #endif
+	@@ -2495,12 +2495,8 @@ static int kbase_tracking_page_setup(struct kbase_context *kctx, struct vm_area_
+	 	spin_unlock(&kctx->mm_update_lock);
+
+	 	/* no real access */
+	-	vma->vm_flags &= ~(VM_READ | VM_MAYREAD | VM_WRITE | VM_MAYWRITE | VM_EXEC | VM_MAYEXEC);
+	-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0))
+	-	vma->vm_flags |= VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP | VM_IO;
+	-#else
+	-	vma->vm_flags |= VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED | VM_IO;
+	-#endif
+	+	vm_flags_clear(vma, VM_READ | VM_MAYREAD | VM_WRITE | VM_MAYWRITE | VM_EXEC | VM_MAYEXEC);
+	+	vm_flags_set(vma, VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP | VM_IO);
+	 	vma->vm_ops = &kbase_vm_special_ops;
+	 	vma->vm_private_data = kctx;
+
+	diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_pool.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_pool.c
+	index 0f91be1..26578f2 100644
+	--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_pool.c
+	+++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_pool.c
+	@@ -397,7 +397,7 @@ int kbase_mem_pool_init(struct kbase_mem_pool *pool,
+	 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+	 	pool->reclaim.batch = 0;
+	 #endif
+	-	register_shrinker(&pool->reclaim);
+	+	register_shrinker(&pool->reclaim, "mali_kbase_pool");
+
+	 	pool_dbg(pool, "initialized\n");
+
+	diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/thirdparty/mali_kbase_mmap.c b/driver/product/kernel/drivers/gpu/arm/midgard/thirdparty/mali_kbase_mmap.c
+	index 3aab51a..eaed808 100644
+	--- a/driver/product/kernel/drivers/gpu/arm/midgard/thirdparty/mali_kbase_mmap.c
+	+++ b/driver/product/kernel/drivers/gpu/arm/midgard/thirdparty/mali_kbase_mmap.c
+	@@ -29,6 +29,7 @@
+	  * Boston, MA  02110-1301, USA.
+	  */
+
+	+#include <linux/maple_tree.h>
+	 #include "linux/mman.h"
+	 #include "../mali_kbase.h"
+
+	@@ -153,97 +154,25 @@ static unsigned long kbase_unmapped_area_topdown(struct vm_unmapped_area_info
+	 		*info, bool is_shader_code, bool is_same_4gb_page)
+	 {
+	 	struct mm_struct *mm = current->mm;
+	-	struct vm_area_struct *vma;
+	-	unsigned long length, low_limit, high_limit, gap_start, gap_end;
+	+	//struct vm_area_struct *vma;
+	+	//unsigned long length, low_limit, high_limit, gap_start, gap_end;
+	+	unsigned long length, gap_start, gap_end;
+
+	+	MA_STATE(mas, &mm->mm_mt, 0, 0);
+	 	/* Adjust search length to account for worst case alignment overhead */
+	 	length = info->length + info->align_mask;
+	 	if (length < info->length)
+	 		return -ENOMEM;
+
+	-	/*
+	-	 * Adjust search limits by the desired length.
+	-	 * See implementation comment at top of unmapped_area().
+	-	 */
+	-	gap_end = info->high_limit;
+	-	if (gap_end < length)
+	+	if (mas_empty_area_rev(&mas, info->low_limit, info->high_limit - 1,
+	+				length))
+	 		return -ENOMEM;
+	-	high_limit = gap_end - length;
+
+	-	if (info->low_limit > high_limit)
+	-		return -ENOMEM;
+	-	low_limit = info->low_limit + length;
+	-
+	-	/* Check highest gap, which does not precede any rbtree node */
+	-	gap_start = mm->highest_vm_end;
+	-	if (gap_start <= high_limit) {
+	-		if (align_and_check(&gap_end, gap_start, info,
+	+	gap_end = mas.last + 1;
+	+	gap_start = mas.index;
+	+	if (align_and_check(&gap_end, gap_start, info,
+	 				is_shader_code, is_same_4gb_page))
+	 			return gap_end;
+	-	}
+	-
+	-	/* Check if rbtree root looks promising */
+	-	if (RB_EMPTY_ROOT(&mm->mm_rb))
+	-		return -ENOMEM;
+	-	vma = rb_entry(mm->mm_rb.rb_node, struct vm_area_struct, vm_rb);
+	-	if (vma->rb_subtree_gap < length)
+	-		return -ENOMEM;
+	-
+	-	while (true) {
+	-		/* Visit right subtree if it looks promising */
+	-		gap_start = vma->vm_prev ? vma->vm_prev->vm_end : 0;
+	-		if (gap_start <= high_limit && vma->vm_rb.rb_right) {
+	-			struct vm_area_struct *right =
+	-				rb_entry(vma->vm_rb.rb_right,
+	-					 struct vm_area_struct, vm_rb);
+	-			if (right->rb_subtree_gap >= length) {
+	-				vma = right;
+	-				continue;
+	-			}
+	-		}
+	-
+	-check_current:
+	-		/* Check if current node has a suitable gap */
+	-		gap_end = vma->vm_start;
+	-		if (gap_end < low_limit)
+	-			return -ENOMEM;
+	-		if (gap_start <= high_limit && gap_end - gap_start >= length) {
+	-			/* We found a suitable gap. Clip it with the original
+	-			 * high_limit. */
+	-			if (gap_end > info->high_limit)
+	-				gap_end = info->high_limit;
+	-
+	-			if (align_and_check(&gap_end, gap_start, info,
+	-					is_shader_code, is_same_4gb_page))
+	-				return gap_end;
+	-		}
+	-
+	-		/* Visit left subtree if it looks promising */
+	-		if (vma->vm_rb.rb_left) {
+	-			struct vm_area_struct *left =
+	-				rb_entry(vma->vm_rb.rb_left,
+	-					 struct vm_area_struct, vm_rb);
+	-			if (left->rb_subtree_gap >= length) {
+	-				vma = left;
+	-				continue;
+	-			}
+	-		}
+	-
+	-		/* Go back up the rbtree to find next candidate node */
+	-		while (true) {
+	-			struct rb_node *prev = &vma->vm_rb;
+	-
+	-			if (!rb_parent(prev))
+	-				return -ENOMEM;
+	-			vma = rb_entry(rb_parent(prev),
+	-				       struct vm_area_struct, vm_rb);
+	-			if (prev == vma->vm_rb.rb_right) {
+	-				gap_start = vma->vm_prev ?
+	-					vma->vm_prev->vm_end : 0;
+	-				goto check_current;
+	-			}
+	-		}
+	-	}
+
+	 	return -ENOMEM;
+	 }
+	--
+	2.39.0
