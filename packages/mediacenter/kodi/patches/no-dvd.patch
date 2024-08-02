@@ -1,0 +1,12 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0ef3151592..4567936a91 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -228,7 +228,6 @@ set(required_deps ASS>=0.15.0
+                   Fstrcmp
+                   HarfBuzz
+                   Iconv
+-                  LibDvd
+                   Lzo2
+                   OpenSSL>=1.1.0
+                   PCRE2

@@ -3,13 +3,13 @@
 # Copyright (C) 2017-present Team LibreELEC (https://libreelec.tv)
 
 PKG_NAME="ffmpeg"
-PKG_LICENSE="LGPLv2.1+"
+PKG_VERSION="6.0.1"
+PKG_SHA256="9b16b8731d78e596b4be0d720428ca42df642bb2d78342881ff7f5bc29fc9623"
+PKG_LICENSE="GPL-3.0-only"
 PKG_SITE="https://ffmpeg.org"
-PKG_DEPENDS_TARGET="toolchain zlib bzip2 openssl speex"
-PKG_LONGDESC="FFmpeg is a complete, cross-platform solution to record, convert and stream audio and video."
-
-PKG_VERSION="6.0"
 PKG_URL="http://ffmpeg.org/releases/ffmpeg-${PKG_VERSION}.tar.xz"
+PKG_DEPENDS_TARGET="toolchain zlib bzip2 openssl speex libxml2"
+PKG_LONGDESC="FFmpeg is a complete, cross-platform solution to record, convert and stream audio and video."
 PKG_PATCH_DIRS="rocknix"
 
 PKG_PATCH_DIRS+=" v4l2-request v4l2-drmprime"
@@ -133,6 +133,11 @@ pre_configure_target() {
 
 if [ "${FFMPEG_TESTING}" = "yes" ]; then
   PKG_FFMPEG_TESTING="--enable-encoder=wrapped_avframe --enable-muxer=null"
+  PKG_FFMPEG_TESTING+=" --enable-encoder=rawvideo --enable-muxer=rawvideo"
+  PKG_FFMPEG_TESTING+=" --enable-muxer=image2 --enable-muxer=md5 --enable-muxer=framemd5"
+  if [ "${PROJECT}" = "RPi" ]; then
+    PKG_FFMPEG_TESTING+=" --enable-vout-drm --enable-outdev=vout_drm"
+  fi
 else
   PKG_FFMPEG_TESTING="--disable-programs"
 fi
@@ -159,6 +164,7 @@ configure_target() {
               --extra-libs="${PKG_FFMPEG_LIBS}" \
               --disable-static \
               --enable-shared \
+              --enable-gpl \
               --enable-version3 \
               --enable-logging \
               --disable-doc \
@@ -232,6 +238,7 @@ configure_target() {
               --disable-libvpx \
               --disable-libx264 \
               --disable-libxavs \
+              --enable-libxml2 \
               --disable-libxvid \
               --enable-zlib \
               --enable-asm \
