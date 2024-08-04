@@ -3,11 +3,12 @@
 # Copyright (C) 2018-present Team LibreELEC (https://libreelec.tv)
 
 PKG_NAME="systemd"
-PKG_VERSION="255.8"
+PKG_VERSION="256.4"
 PKG_LICENSE="LGPL2.1+"
 PKG_SITE="http://www.freedesktop.org/wiki/Software/systemd"
-PKG_URL="https://github.com/systemd/systemd-stable/archive/v${PKG_VERSION}.tar.gz"
-PKG_DEPENDS_TARGET="toolchain libcap kmod util-linux libidn2 Python3:host jinja2:host pcre2 zstd"
+PKG_URL="https://github.com/systemd/systemd/archive/v${PKG_VERSION}.tar.gz"
+#PKG_DEPENDS_TARGET="toolchain libcap kmod util-linux entropy libidn2 wait-time-sync Jinja2:host pcre2 zstd"
+PKG_DEPENDS_TARGET="toolchain libcap kmod util-linux libidn2 jinja2:host pcre2 zstd"
 PKG_LONGDESC="A system and session manager for Linux, compatible with SysV and LSB init scripts."
 
 PKG_MESON_OPTS_TARGET="--libdir=/usr/lib \
@@ -17,45 +18,46 @@ PKG_MESON_OPTS_TARGET="--libdir=/usr/lib \
                        -Ddefault-hierarchy=hybrid \
                        -Dtty-gid=5 \
                        -Dtests=false \
-                       -Dseccomp=false \
-                       -Dselinux=false \
-                       -Dapparmor=false \
-                       -Dpolkit=false \
-                       -Dacl=false \
-                       -Daudit=false \
-                       -Dblkid=true \
-                       -Dfdisk=false \
-                       -Dkmod=true \
-                       -Dpam=false \
-                       -Dpwquality=false \
-                       -Dmicrohttpd=false \
-                       -Dlibcryptsetup=false \
-                       -Dlibcurl=false \
-                       -Dlibidn=false \
-                       -Dlibidn2=true \
-                       -Dlibiptc=false \
-                       -Dqrencode=false \
-                       -Dgcrypt=false \
-                       -Dgnutls=false \
-                       -Dopenssl=false \
-                       -Dp11kit=false \
-                       -Delfutils=false \
-                       -Dzlib=false \
-                       -Dbzip2=false \
-                       -Dxz=false \
-                       -Dlz4=false \
-                       -Dxkbcommon=false \
-                       -Dpcre2=true \
-                       -Dglib=false \
-                       -Ddbus=false \
+                       -Dseccomp=disabled \
+                       -Dselinux=disabled \
+                       -Dapparmor=disabled \
+                       -Dpolkit=disabled \
+                       -Dacl=disabled \
+                       -Daudit=disabled \
+                       -Dblkid=enabled \
+                       -Dfdisk=disabled \
+                       -Dkmod=enabled \
+                       -Dpam=disabled \
+                       -Dpwquality=disabled \
+                       -Dmicrohttpd=disabled \
+                       -Dlibcryptsetup=disabled \
+                       -Dlibcurl=disabled \
+                       -Dlibidn=disabled \
+                       -Dlibidn2=enabled \
+                       -Dlibiptc=disabled \
+                       -Dqrencode=disabled \
+                       -Dgcrypt=disabled \
+                       -Dgnutls=disabled \
+                       -Dopenssl=disabled \
+                       -Dp11kit=disabled \
+                       -Delfutils=disabled \
+                       -Dzlib=disabled \
+                       -Dbzip2=disabled \
+                       -Dxz=disabled \
+                       -Dlz4=disabled \
+                       -Dzstd=enabled \
+                       -Dxkbcommon=disabled \
+                       -Dpcre2=enabled \
+                       -Dglib=disabled \
+                       -Ddbus=disabled \
                        -Ddefault-dnssec=no \
-                       -Dimportd=false \
-                       -Dremote=false \
+                       -Dimportd=disabled \
+                       -Dremote=disabled \
                        -Dutmp=true \
                        -Dhibernate=false \
                        -Denvironment-d=false \
                        -Dbinfmt=true \
-                       -Drepart=false \
+                       -Drepart=disabled \
                        -Dcoredump=false \
                        -Dresolve=false \
                        -Dlogind=true \
@@ -64,7 +66,7 @@ PKG_MESON_OPTS_TARGET="--libdir=/usr/lib \
                        -Dmachined=false \
                        -Dportabled=false \
                        -Duserdb=false \
-                       -Dhomed=false \
+                       -Dhomed=disabled \
                        -Dnetworkd=false \
                        -Dtimedated=false \
                        -Dtimesyncd=true \
@@ -78,18 +80,17 @@ PKG_MESON_OPTS_TARGET="--libdir=/usr/lib \
                        -Dhwdb=true \
                        -Drfkill=false \
                        -Dldconfig=false \
-                       -Defi=false \
                        -Dtpm=false \
                        -Dima=false \
                        -Dsmack=false \
                        -Dgshadow=false \
                        -Didn=false \
                        -Dnss-myhostname=false \
-                       -Dnss-mymachines=false \
-                       -Dnss-resolve=false \
+                       -Dnss-mymachines=disabled \
+                       -Dnss-resolve=disabled \
                        -Dnss-systemd=false \
-                       -Dman=false \
-                       -Dhtml=false \
+                       -Dman=disabled \
+                       -Dhtml=disabled \
                        -Dlink-udev-shared=true \
                        -Dlink-systemctl-shared=true \
                        -Dlink-networkd-shared=false \
@@ -98,17 +99,16 @@ PKG_MESON_OPTS_TARGET="--libdir=/usr/lib \
                        -Dkmod-path=/usr/bin/kmod \
                        -Dmount-path=/usr/bin/mount \
                        -Dumount-path=/usr/bin/umount \
+                       -Ddebug-tty=${DEBUG_TTY} \
                        -Dversion-tag=${PKG_VERSION}"
-if [ -n "${BUILD_WITH_DEBUG}" ]
-then
-  PKG_MESON_OPTS_TARGET+=" -Ddebug-tty=${DEBUG_TTY}"
+
+if [ "${PROJECT}" = "Generic" ]; then
+  PKG_MESON_OPTS_TARGET+=" -Defi=true"
+else
+  PKG_MESON_OPTS_TARGET+=" -Defi=false"
 fi
 
 pre_configure_target() {
-  export TARGET_CFLAGS=$(echo ${TARGET_CFLAGS} | sed -e "s|-O.|-O3|g")
-
-  export TARGET_LDFLAGS=$(echo ${TARGET_LDFLAGS} | sed -e "s|-O.|-O3|g")
-
   export TARGET_CFLAGS="${TARGET_CFLAGS} -fno-schedule-insns -fno-schedule-insns2 -Wno-format-truncation"
   export LC_ALL=en_US.UTF-8
 }
@@ -150,12 +150,17 @@ post_makeinstall_target() {
   safe_remove ${INSTALL}/usr/lib/systemd/system/dev-hugepages.mount
   safe_remove ${INSTALL}/usr/lib/systemd/system/*.target.wants/dev-hugepages.mount
 
+  safe_remove ${INSTALL}/usr/lib/systemd/system/systemd-journald-audit.socket
+
   # adjust systemd-hwdb-update (we have read-only /etc).
   sed '/^ConditionNeedsUpdate=.*$/d' -i ${INSTALL}/usr/lib/systemd/system/systemd-hwdb-update.service
 
   # remove nspawn
   safe_remove ${INSTALL}/usr/bin/systemd-nspawn
   safe_remove ${INSTALL}/usr/lib/systemd/system/systemd-nspawn@.service
+
+  # remove timedatectl
+  safe_remove ${INSTALL}/usr/bin/timedatectl
 
   # remove unneeded generators
   for gen in ${INSTALL}/usr/lib/systemd/system-generators/*; do
@@ -200,8 +205,12 @@ post_makeinstall_target() {
   sed -e "s,^.*SystemMaxUse=.*$,SystemMaxUse=10M,g" -i ${INSTALL}/etc/systemd/journald.conf
 
   # tune logind.conf
-  sed -e "s,^.*HandleLidSwitch=.*$,HandleLidSwitch=suspend,g" -i ${INSTALL}/etc/systemd/logind.conf
-  sed -e "s,^.*HandlePowerKey=.*$,HandlePowerKey=suspend,g" -i ${INSTALL}/etc/systemd/logind.conf
+  sed -e "s,^.*HandleLidSwitch=.*$,HandleLidSwitch=ignore,g" -i ${INSTALL}/etc/systemd/logind.conf
+  if [ "${DISPLAYSERVER}" = "no" ]; then
+    sed -e "s,^.*HandlePowerKey=.*$,HandlePowerKey=poweroff,g" -i ${INSTALL}/etc/systemd/logind.conf
+  else
+    sed -e "s,^.*HandlePowerKey=.*$,HandlePowerKey=ignore,g" -i ${INSTALL}/etc/systemd/logind.conf
+  fi
 
   # replace systemd-machine-id-setup with ours
   safe_remove ${INSTALL}/usr/lib/systemd/system/systemd-machine-id-commit.service
@@ -211,6 +220,10 @@ post_makeinstall_target() {
   cp ${PKG_DIR}/scripts/systemd-machine-id-setup ${INSTALL}/usr/bin
   cp ${PKG_DIR}/scripts/userconfig-setup ${INSTALL}/usr/bin
   cp ${PKG_DIR}/scripts/usercache-setup ${INSTALL}/usr/bin
+  cp ${PKG_DIR}/scripts/environment-setup ${INSTALL}/usr/bin
+
+  # use systemd to set cpufreq governor and tunables
+  find_file_path scripts/cpufreq && cp -PRv ${FOUND_PATH} ${INSTALL}/usr/bin
 
   mkdir -p ${INSTALL}/usr/sbin
   cp ${PKG_DIR}/scripts/kernel-overlays-setup ${INSTALL}/usr/sbin
@@ -263,28 +276,34 @@ post_install() {
   add_group systemd-network 193
   add_user systemd-network x 193 193 "systemd-network" "/" "/bin/sh"
 
-  add_group audio 63
+  add_group systemd-oom 194
+  add_user systemd-oom x 194 194 "systemd Userspace OOM Killer" "/" "/bin/false"
+
+  add_group adm 4
+  add_group tty 5
+  add_group disk 6
+  add_group lp 7
+  add_group kmem 9
+  add_group wheel 10
   add_group cdrom 11
   add_group dialout 18
-  add_group disk 6
   add_group floppy 19
-  add_group kmem 9
-  add_group kvm 10
-  add_group lp 7
-  add_group render 12
-  add_group tape 33
-  add_group tty 5
-  add_group video 39
   add_group utmp 22
-  add_group input 199
+  add_group tape 33
+  add_group kvm 36
+  add_group video 39 pipewire
+  add_group audio 63 pipewire
+  add_group input 104
+  add_group render 105
+  add_group sgx 106
 
   enable_service machine-id.service
   enable_service debugconfig.service
   enable_service userconfig.service
   enable_service usercache.service
-  enable_service kernel-overlays.service
+  enable_service envconfig.service
+  enable_service cpufreq.service
   enable_service network-base.service
   enable_service systemd-timesyncd.service
   enable_service systemd-timesyncd-setup.service
-  enable_service debug-shell.service
 }

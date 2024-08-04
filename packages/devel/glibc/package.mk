@@ -3,21 +3,21 @@
 # Copyright (C) 2018-present Team LibreELEC (https://libreelec.tv)
 
 PKG_NAME="glibc"
-PKG_VERSION="2.38"
+PKG_VERSION="2.40"
 PKG_LICENSE="GPL"
 PKG_SITE="https://www.gnu.org/software/libc/"
 PKG_URL="https://ftp.gnu.org/pub/gnu/glibc/${PKG_NAME}-${PKG_VERSION}.tar.xz"
 PKG_DEPENDS_TARGET="ccache:host autotools:host linux:host gcc:bootstrap pigz:host Python3:host"
 PKG_DEPENDS_INIT="glibc"
 PKG_LONGDESC="The Glibc package contains the main C library."
-PKG_BUILD_FLAGS="+bfd -gold"
+PKG_BUILD_FLAGS="+bfd"
 
 case "${DEVICE}" in
   RK3588*)
     OPT_ENABLE_KERNEL=5.10.0
   ;;
   *)
-    OPT_ENABLE_KERNEL=6.1.0
+    OPT_ENABLE_KERNEL=6.6.0
   ;;
 esac
 
@@ -36,7 +36,6 @@ PKG_CONFIGURE_OPTS_TARGET="BASH_SHELL=/bin/sh \
                            --disable-sanity-checks \
                            --enable-add-ons \
                            --enable-bind-now \
-                           --enable-crypt \
                            --with-elf \
                            --with-tls \
                            --with-__thread \
@@ -107,6 +106,12 @@ post_makeinstall_target() {
     cp -p ${INSTALL}/usr/bin/localedef ${INSTALL}/.noinstall
     cp -a ${INSTALL}/usr/share/i18n/locales ${INSTALL}/.noinstall
     mv ${INSTALL}/usr/share/i18n/charmaps ${INSTALL}/.noinstall
+
+# cleanup
+# remove any programs we don't want/need, keeping only those we want
+  for f in $(find ${INSTALL}/usr/bin -type f); do
+    listcontains "${GLIBC_INCLUDE_BIN}" "$(basename "${f}")" || safe_remove "${f}"
+  done
 
   safe_remove ${INSTALL}/usr/lib/audit
   safe_remove ${INSTALL}/usr/lib/glibc
