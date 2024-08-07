@@ -3,7 +3,7 @@
 
 PKG_NAME="qt6base"
 PKG_MAJOR_VERSION="6.6"
-PKG_VERSION="${PKG_MAJOR_VERSION}.1"
+PKG_VERSION="${PKG_MAJOR_VERSION}.3"
 PKG_LICENSE="GPLv3"
 PKG_SITE="https://download.qt.io"
 PKG_URL="${PKG_SITE}/archive/qt/${PKG_MAJOR_VERSION}/${PKG_VERSION}/submodules/qtbase-everywhere-src-${PKG_VERSION}.tar.xz"
