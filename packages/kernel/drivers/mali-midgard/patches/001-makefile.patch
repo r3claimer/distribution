@@ -1,0 +1,197 @@
+From 71157b34285695a84933d1d7bcfa5402304111da Mon Sep 17 00:00:00 2001
+From: Geraldo Nascimento <geraldogabriel@gmail.com>
+Date: Mon, 24 Jun 2024 01:44:53 -0300
+Subject: [PATCH 2/2] Update to Linux 6.10-rc4
+
+strscpy enforced, explicitly include of.h, changed get_rcu_file
+signature to pointer variable, and mainly, the lockless slab shrink
+that breaks naive compatibility with #ifdefs for older kernels
+---
+ .../arm/midgard/mali_kbase_debug_mem_view.c   |  2 +-
+ .../drivers/gpu/arm/midgard/mali_kbase_defs.h |  4 +--
+ .../gpu/arm/midgard/mali_kbase_device.c       |  1 +
+ .../gpu/arm/midgard/mali_kbase_mem_linux.c    | 28 ++++++++-----------
+ .../gpu/arm/midgard/mali_kbase_mem_pool.c     | 28 ++++++++-----------
+ .../gpu/arm/midgard/mali_kbase_tlstream.c     |  2 +-
+ 6 files changed, 29 insertions(+), 36 deletions(-)
+
+diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_debug_mem_view.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_debug_mem_view.c
+index 8f46117..789e721 100644
+--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_debug_mem_view.c
++++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_debug_mem_view.c
+@@ -203,7 +203,7 @@ static int debug_mem_open(struct inode *i, struct file *file)
+ 	struct debug_mem_data *mem_data;
+ 	int ret;
+ 
+-	if (get_file_rcu(kctx_file) == 0)
++	if (get_file_rcu(&kctx_file) == 0)
+ 		return -ENOENT;
+ 
+ 	ret = seq_open(file, &ops);
+diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h
+index 922dc70..bb1bfe9 100644
+--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h
++++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_defs.h
+@@ -1100,7 +1100,7 @@ struct kbase_mem_pool {
+ 	size_t		    order;
+ 	spinlock_t          pool_lock;
+ 	struct list_head    page_list;
+-	struct shrinker     reclaim;
++	struct shrinker     *reclaim;
+ 
+ 	struct kbase_mem_pool *next_pool;
+ 
+@@ -2013,7 +2013,7 @@ struct kbase_context {
+ 	struct kbase_mem_pool mem_pool;
+ 	struct kbase_mem_pool lp_mem_pool;
+ 
+-	struct shrinker         reclaim;
++	struct shrinker         *reclaim;
+ 	struct list_head        evict_list;
+ 
+ 	struct list_head waiting_soft_jobs;
+diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_device.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_device.c
+index 7d79e96..eef571e 100644
+--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_device.c
++++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_device.c
+@@ -32,6 +32,7 @@
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <linux/of_platform.h>
++#include <linux/of.h>
+ 
+ #include <mali_kbase.h>
+ #include <mali_kbase_defs.h>
+diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_linux.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_linux.c
+index 58bf3be..4829aef 100644
+--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_linux.c
++++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_linux.c
+@@ -527,7 +527,7 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
+ 	struct kbase_mem_phy_alloc *alloc;
+ 	unsigned long pages = 0;
+ 
+-	kctx = container_of(s, struct kbase_context, reclaim);
++	kctx = s->private_data;
+ 
+ 	mutex_lock(&kctx->jit_evict_lock);
+ 
+@@ -566,7 +566,7 @@ unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s,
+ 	struct kbase_mem_phy_alloc *tmp;
+ 	unsigned long freed = 0;
+ 
+-	kctx = container_of(s, struct kbase_context, reclaim);
++	kctx = s->private_data;
+ 	mutex_lock(&kctx->jit_evict_lock);
+ 
+ 	list_for_each_entry_safe(alloc, tmp, &kctx->evict_list, evict_node) {
+@@ -628,25 +628,21 @@ int kbase_mem_evictable_init(struct kbase_context *kctx)
+ 	mutex_init(&kctx->jit_evict_lock);
+ 
+ 	/* Register shrinker */
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
+-	kctx->reclaim.shrink = kbase_mem_evictable_reclaim_shrink;
+-#else
+-	kctx->reclaim.count_objects = kbase_mem_evictable_reclaim_count_objects;
+-	kctx->reclaim.scan_objects = kbase_mem_evictable_reclaim_scan_objects;
+-#endif
+-	kctx->reclaim.seeks = DEFAULT_SEEKS;
+-	/* Kernel versions prior to 3.1 :
+-	 * struct shrinker does not define batch */
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+-	kctx->reclaim.batch = 0;
+-#endif
+-	register_shrinker(&kctx->reclaim, "mali_kbase");
++	kctx->reclaim = shrinker_alloc(0, "mali_kmem_base");
++	if (!kctx->reclaim)
++		return 1;
++	kctx->reclaim->count_objects = kbase_mem_evictable_reclaim_count_objects;
++	kctx->reclaim->scan_objects = kbase_mem_evictable_reclaim_scan_objects;
++	kctx->reclaim->seeks = DEFAULT_SEEKS;
++	kctx->reclaim->batch = 0;
++	kctx->reclaim->private_data = kctx;
++	shrinker_register(kctx->reclaim);
+ 	return 0;
+ }
+ 
+ void kbase_mem_evictable_deinit(struct kbase_context *kctx)
+ {
+-	unregister_shrinker(&kctx->reclaim);
++	shrinker_free(kctx->reclaim);
+ }
+ 
+ /**
+ diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_pool.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_pool.c
+index 26578f2..fd07d15 100644
+--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_pool.c
++++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_mem_pool.c
+@@ -319,7 +319,7 @@ static unsigned long kbase_mem_pool_reclaim_count_objects(struct shrinker *s,
+ 	struct kbase_mem_pool *pool;
+ 	size_t pool_size;
+ 
+-	pool = container_of(s, struct kbase_mem_pool, reclaim);
++	pool = s->private_data;
+ 
+ 	kbase_mem_pool_lock(pool);
+ 	if (pool->dont_reclaim && !pool->dying) {
+@@ -338,7 +338,7 @@ static unsigned long kbase_mem_pool_reclaim_scan_objects(struct shrinker *s,
+ 	struct kbase_mem_pool *pool;
+ 	unsigned long freed;
+ 
+-	pool = container_of(s, struct kbase_mem_pool, reclaim);
++	pool = s->private_data;
+ 
+ 	kbase_mem_pool_lock(pool);
+ 	if (pool->dont_reclaim && !pool->dying) {
+@@ -385,19 +385,15 @@ int kbase_mem_pool_init(struct kbase_mem_pool *pool,
+ 	INIT_LIST_HEAD(&pool->page_list);
+ 
+ 	/* Register shrinker */
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
+-	pool->reclaim.shrink = kbase_mem_pool_reclaim_shrink;
+-#else
+-	pool->reclaim.count_objects = kbase_mem_pool_reclaim_count_objects;
+-	pool->reclaim.scan_objects = kbase_mem_pool_reclaim_scan_objects;
+-#endif
+-	pool->reclaim.seeks = DEFAULT_SEEKS;
+-	/* Kernel versions prior to 3.1 :
+-	 * struct shrinker does not define batch */
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+-	pool->reclaim.batch = 0;
+-#endif
+-	register_shrinker(&pool->reclaim, "mali_kbase_pool");
++	pool->reclaim = shrinker_alloc(0, "mali_kbase_pool");
++	if (!pool->reclaim)
++		return 1;
++	pool->reclaim->count_objects = kbase_mem_pool_reclaim_count_objects;
++	pool->reclaim->scan_objects = kbase_mem_pool_reclaim_scan_objects;
++	pool->reclaim->seeks = DEFAULT_SEEKS;
++	pool->reclaim->batch = 0;
++	pool->reclaim->private_data = pool;
++	shrinker_register(pool->reclaim);
+ 
+ 	pool_dbg(pool, "initialized\n");
+ 
+@@ -422,7 +418,7 @@ void kbase_mem_pool_term(struct kbase_mem_pool *pool)
+ 
+ 	pool_dbg(pool, "terminate()\n");
+ 
+-	unregister_shrinker(&pool->reclaim);
++	shrinker_free(pool->reclaim);
+ 
+ 	kbase_mem_pool_lock(pool);
+ 	pool->max_size = 0;
+diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_tlstream.c b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_tlstream.c
+index 56e4ebe..0270d55 100644
+--- a/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_tlstream.c
++++ b/driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase_tlstream.c
+@@ -663,7 +663,7 @@ static size_t kbasep_tlstream_write_string(
+ 	KBASE_DEBUG_ASSERT(max_write_size >= sizeof(string_len) + sizeof(char));
+ 	max_write_size -= sizeof(string_len);
+ 
+-	string_len = strlcpy(
++	string_len = strscpy(
+ 			&buffer[pos + sizeof(string_len)],
+ 			string,
+ 			max_write_size);
+-- 
+2.45.2

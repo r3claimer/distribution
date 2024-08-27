@@ -50,8 +50,9 @@
     HW_CPU="Rockchip RK3399"
 
   # Mali GPU family
-    MALI_FAMILY="t860"
-    GRAPHIC_DRIVERS="panfrost"
+    MALI_FAMILY="midgard-t86x"
+    MALI_VERSION="r18p0"
+    GRAPHIC_DRIVERS="mali panfrost"
 
   # OpenGL(X) implementation to use (mesa / no)
     OPENGL="mesa"
@@ -63,7 +64,7 @@
     DISPLAYSERVER="wl"
 
   # Windowmanager to use (weston / swaywm-env / no)
-    WINDOWMANAGER="weston"
+    WINDOWMANAGER="swaywm-env"
 
   # Pipewire audio support (yes / no)
     PIPEWIRE_SUPPORT="yes"
@@ -75,7 +76,7 @@
     ROCKNIX_JOYPAD="yes"
 
   # additional packages to install
-    ADDITIONAL_PACKAGES=""
+    ADDITIONAL_PACKAGES="libmali"
 
   # additional Firmware to use ( )
   # Space separated list is supported,
@@ -86,10 +87,12 @@
   # for a list of additional drivers see packages/linux-drivers
   # Space separated list is supported,
   # e.g. ADDITIONAL_DRIVERS="DRIVER1 DRIVER2"
-    ADDITIONAL_DRIVERS=""
+    ADDITIONAL_DRIVERS="mali-midgard"
 
   # debug tty path
     DEBUG_TTY="/dev/ttyFIQ0"
 
   # Some devices have internal storage.
     INSTALLER_SUPPORT="no"
+
+ ENABLE_32BIT="false"
