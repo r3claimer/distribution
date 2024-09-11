@@ -11,7 +11,7 @@ PKG_PATCH_DIRS+=" ${DEVICE}"
 
 case ${DEVICE} in
   RK3588*)
-	PKG_VERSION="832c3c7117e4366e415ded92a6f07ec203fd9233"
+	PKG_VERSION="5db135f66ad325dcbf782c208480fcdced93db60"
 	PKG_SITE="https://github.com/ROCKNIX/mesa-panfork"
 	PKG_URL="${PKG_SITE}.git"
   ;;
@@ -22,7 +22,7 @@ case ${DEVICE} in
 	    PKG_URL="https://gitlab.freedesktop.org/mesa/mesa/-/archive/mesa-${PKG_VERSION}/mesa-mesa-${PKG_VERSION}.tar.gz"
     else
       #Using upstream dev for panfrost
-	    PKG_VERSION="332252966bac19edcb1fe76642673ff71074b8a6"
+	    PKG_VERSION="f9a15b37ef620f11667a0a5c676208ba2164ca23"
 	    PKG_SITE="https://gitlab.freedesktop.org/mesa/mesa"
 	    PKG_URL="${PKG_SITE}.git"
 	    PKG_PATCH_DIRS+=" panfrost"
