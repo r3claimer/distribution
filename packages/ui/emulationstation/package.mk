@@ -3,7 +3,7 @@
 # Copyright (C) 2023 JELOS (https://github.com/JustEnoughLinuxOS)
 
 PKG_NAME="emulationstation"
-PKG_VERSION="dd7f40b0cfd1f5e51ec0d1deda006e1c2657b3e8"
+PKG_VERSION="856d8c9948808ca76e4bc77f2d22b7d1241e3c0f"
 PKG_GIT_CLONE_BRANCH="main"
 PKG_LICENSE="GPL"
 PKG_SITE="https://github.com/ROCKNIX/emulationstation"
@@ -37,6 +37,13 @@ fi
 
 if [ "${GRAPHIC_DRIVERS}" = "panfrost" ] && [ ! "${DEVICE}" = "RK3588" ]; then
   PKG_CMAKE_OPTS_TARGET+=" -DPANFROST=1"
+fi
+
+# Enable Moonlight for everything but S922X Mali Vulkan
+if [ "${DEVICE}" = "S922X" -a "${USE_MALI}" != "no" ]; then
+  PKG_CMAKE_OPTS_TARGET+=" -DMOONLIGHT=0"
+else
+  PKG_CMAKE_OPTS_TARGET+=" -DMOONLIGHT=1"
 fi
 
 PKG_CMAKE_OPTS_TARGET+=" -DENABLE_EMUELEC=1 \

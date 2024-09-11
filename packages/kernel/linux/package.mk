@@ -30,17 +30,12 @@ case ${DEVICE} in
     PKG_GIT_CLONE_BRANCH="rk-6.1-rkr1-panthor-v6"
   ;;
   H700)
-    PKG_VERSION="e3c121d666583f4cf32883b123ef84166b4998f6"
+    PKG_VERSION="996b4126d10e68ee70b64fc9a2fbccdc92a64f93"
     PKG_URL="https://git.sr.ht/~tokyovigilante/linux/archive/${PKG_VERSION}.tar.gz"
     PKG_PATCH_DIRS+=" mainline"
     ;;
-  RK3566|S922X)
-    PKG_VERSION="6.10"
-    PKG_URL="https://www.kernel.org/pub/linux/kernel/v${PKG_VERSION/.*/}.x/${PKG_NAME}-${PKG_VERSION}.tar.xz"
-    PKG_PATCH_DIRS+=" mainline"
-    ;;
   *)
-    PKG_VERSION="6.9.9"
+    PKG_VERSION="6.9.12"
     PKG_URL="https://www.kernel.org/pub/linux/kernel/v${PKG_VERSION/.*/}.x/${PKG_NAME}-${PKG_VERSION}.tar.xz"
     PKG_PATCH_DIRS+=" mainline"
     ;;

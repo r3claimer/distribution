@@ -24,17 +24,12 @@ src-pkg:
 docs:
 	./tools/foreach './scripts/clean emulators && ./scripts/build emulators'
 
-world: RK3588 RK3566 RK3566-X55 RK3326 RK3399 S922X
+world: RK3588 RK3566 RK3326 RK3399 S922X
 
 AMD64:
 	unset DEVICE_ROOT
 	PROJECT=PC DEVICE=AMD64 ARCH=i686 ./scripts/build_distro
 	PROJECT=PC DEVICE=AMD64 ARCH=x86_64 ./scripts/build_distro
-
-INTEL64:
-	unset DEVICE_ROOT
-	PROJECT=PC DEVICE=INTEL64 ARCH=i686 ./scripts/build_distro
-	PROJECT=PC DEVICE=INTEL64 ARCH=x86_64 ./scripts/build_distro
 
 RK3588:
 	unset DEVICE_ROOT
@@ -55,10 +50,6 @@ RK3566:
 	unset DEVICE_ROOT
 	DEVICE_ROOT=RK3566 PROJECT=Rockchip DEVICE=RK3566 ARCH=arm ./scripts/build_distro
 	DEVICE_ROOT=RK3566 PROJECT=Rockchip DEVICE=RK3566 ARCH=aarch64 ./scripts/build_distro
-
-RK3566-X55:
-	DEVICE_ROOT=RK3566 PROJECT=Rockchip DEVICE=RK3566-X55 ARCH=arm ./scripts/build_distro
-	DEVICE_ROOT=RK3566 PROJECT=Rockchip DEVICE=RK3566-X55 ARCH=aarch64 ./scripts/build_distro
 
 RK3326:
 	unset DEVICE_ROOT
