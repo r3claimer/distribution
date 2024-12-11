@@ -50,10 +50,10 @@ fi
 if [ "$SUI" = "1" ]; then
   export QT_QPA_PLATFORM=wayland
   set_kill set "-9 rpcs3"
-  /usr/bin/rpcs3-sa
+  /usr/bin/rpcs3
 else
-  export QT_QPA_PLATFORM=xcb
+  export QT_QPA_PLATFORM=wayland
  # export SDL_AUDIODRIVER=pulseaudio
   set_kill set "-9 rpcs3"
-	/usr/bin/rpcs3-sa --no-gui "$GAME_PATH"
+	/usr/bin/rpcs3 --no-gui "$GAME_PATH"
 fi
