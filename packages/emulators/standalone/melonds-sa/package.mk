@@ -2,7 +2,7 @@
 # Copyright (C) 2022-present JELOS (https://github.com/JustEnoughLinuxOS)
 
 PKG_NAME="melonds-sa"
-PKG_VERSION="a72b79a55ad2d61811af11b1b911f6af863f66c2"
+PKG_VERSION="0c5dd28b1c5c1d17a2ce87efbd858059a8f9376f"
 PKG_LICENSE="GPLv3"
 PKG_SITE="https://github.com/melonDS-emu/melonDS"
 PKG_URL="${PKG_SITE}.git"
@@ -29,7 +29,7 @@ fi
 
 PKG_CMAKE_OPTS_TARGET+=" -DCMAKE_BUILD_TYPE=Release \
                          -DCMAKE_INSTALL_PREFIX="/usr" \
--DUSE_QT6=ON \
+                         -DUSE_QT6=ON \
                          -DBUILD_SHARED_LIBS=OFF"
 
 

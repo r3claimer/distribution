@@ -1,21 +1,8 @@
 diff --git a/src/frontend/qt_sdl/Config.cpp b/src/frontend/qt_sdl/Config.cpp
-index 73161809..ab0ddf65 100644
+index 73161809..85b73c7e 100644
 --- a/src/frontend/qt_sdl/Config.cpp
 +++ b/src/frontend/qt_sdl/Config.cpp
-@@ -39,10 +39,9 @@ namespace Config
- using namespace melonDS;
- 
- 
--const char* kConfigFile = "melonDS.toml";
-+const char* kConfigFile = "/storage/.config/melonDS/melonDS.toml";
- 
--const char* kLegacyConfigFile = "melonDS.ini";
--const char* kLegacyUniqueConfigFile = "melonDS.%d.ini";
-+const char* kLegacyConfigFile = "/storage/.config/melonDS/melonDS.ini";
- 
- toml::value RootTable;
- 
-@@ -169,6 +168,8 @@ LegacyEntry LegacyFile[] =
+@@ -169,6 +169,8 @@ LegacyEntry LegacyFile[] =
      {"HKKey_PowerButton",         0, "Keyboard.HK_PowerButton", true},
      {"HKKey_VolumeUp",            0, "Keyboard.HK_VolumeUp", true},
      {"HKKey_VolumeDown",          0, "Keyboard.HK_VolumeDown", true},
@@ -24,7 +11,7 @@ index 73161809..ab0ddf65 100644
  
      {"HKJoy_Lid",                 0, "Joystick.HK_Lid", true},
      {"HKJoy_Mic",                 0, "Joystick.HK_Mic", true},
-@@ -185,6 +186,8 @@ LegacyEntry LegacyFile[] =
+@@ -185,6 +187,8 @@ LegacyEntry LegacyFile[] =
      {"HKJoy_PowerButton",         0, "Joystick.HK_PowerButton", true},
      {"HKJoy_VolumeUp",            0, "Joystick.HK_VolumeUp", true},
      {"HKJoy_VolumeDown",          0, "Joystick.HK_VolumeDown", true},
@@ -33,34 +20,6 @@ index 73161809..ab0ddf65 100644
  
      {"JoystickID", 0, "JoystickID", true},
  
-@@ -673,16 +676,7 @@ template<typename T> T Table::FindDefault(const std::string& path, T def, Defaul
- bool LoadLegacyFile(int inst)
- {
-     Platform::FileHandle* f;
--    if (inst > 0)
--    {
--        char name[100] = {0};
--        snprintf(name, 99, kLegacyUniqueConfigFile, inst+1);
--        f = Platform::OpenLocalFile(name, Platform::FileMode::ReadText);
--    }
--    else
--    {
--        f = Platform::OpenLocalFile(kLegacyConfigFile, Platform::FileMode::ReadText);
--    }
-+    f = Platform::OpenLocalFile(kLegacyConfigFile, Platform::FileMode::ReadText);
- 
-     if (!f) return true;
- 
-@@ -708,9 +702,6 @@ bool LoadLegacyFile(int inst)
-         {
-             if (!strncmp(entry->Name, entryname, 32))
-             {
--                if (!(entry->InstanceUnique ^ (inst == -1)))
--                    break;
--
-                 std::string path = entry->TOMLPath;
-                 toml::value* table = root;
-                 size_t sep;
 diff --git a/src/frontend/qt_sdl/EmuInstance.h b/src/frontend/qt_sdl/EmuInstance.h
 index 48e4e5b9..6926d5a0 100644
 --- a/src/frontend/qt_sdl/EmuInstance.h
