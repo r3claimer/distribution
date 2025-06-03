@@ -17,10 +17,9 @@ PKG_PATCH_DIRS="${LINUX} mainline ${DEVICE} default"
 
 case ${DEVICE} in
   RK3588)
-    PKG_VERSION="b8e62bed74766b6c8c423a767b35495e78b64caf"
-    PKG_URL="https://github.com/armbian/linux-rockchip/archive/${PKG_VERSION}.tar.gz"
-    PKG_GIT_CLONE_BRANCH="rk-6.1-rkr3"
-    PKG_PATCH_DIRS="${LINUX} ${DEVICE} default"
+    PKG_VERSION="546b1c9e93c2bb8cf5ed24e0be1c86bb089b3253"
+    PKG_URL="https://github.com/torvalds/linux/archive/${PKG_VERSION}.tar.gz"
+#    PKG_PATCH_DIRS="${LINUX} ${DEVICE} default"
   ;;
   H700|SM8*)
     PKG_VERSION="6.15"

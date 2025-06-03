@@ -33,8 +33,7 @@
     HW_CPU="Rockchip RK3588"
 
   # Mali GPU family
-    MALI_FAMILY="valhall-g610"
-    GRAPHIC_DRIVERS="mali panfrost"
+    GRAPHIC_DRIVERS="panfrost"
 
   # OpenGL(X) implementation to use (mesa / no)
     OPENGL="mesa"
@@ -58,16 +57,16 @@
     WINDOWMANAGER="weston swaywm-env"
   
   # kernel serial console
-    EXTRA_CMDLINE="quiet console=ttyFIQ0 console=tty0 systemd.debug_shell=ttyFIQ0 coherent_pool=2M fbcon=rotate:1"
+    EXTRA_CMDLINE="quiet console=ttyFIQ0 console=tty0 coherent_pool=2M fbcon=rotate:1"
 
   # build and install rocknix joypad driver (yes / no)
-    ROCKNIX_JOYPAD="yes"
+    ROCKNIX_JOYPAD="no"
 
   # build and install rocknix out-of-tree device trees and overlays (yes / no)
-    ROCKNIX_DEVICE_TREE_OVERLAYS="yes"
+    ROCKNIX_DEVICE_TREE_OVERLAYS="no"
 
   # additional packages to install
-    ADDITIONAL_PACKAGES="libmali weston-kiosk-shell-dpms libmali-vulkan ap6611s"
+    ADDITIONAL_PACKAGES="ap6611s"
 
   # additional Firmware to use ( )
   # Space separated list is supported,
@@ -79,3 +78,5 @@
 
   # Some devices have internal storage.
     INSTALLER_SUPPORT="yes"
+
+    ENABLE_32BIT="false"
