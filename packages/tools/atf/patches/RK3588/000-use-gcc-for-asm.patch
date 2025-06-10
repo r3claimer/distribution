@@ -1,0 +1,21 @@
+diff -rupbN arm-trusted-firmware.orig/make_helpers/build_macros.mk arm-trusted-firmware/make_helpers/build_macros.mk
+--- arm-trusted-firmware.orig/make_helpers/build_macros.mk	2025-06-04 15:02:56.035132602 +0000
++++ arm-trusted-firmware/make_helpers/build_macros.mk	2025-06-04 15:09:58.588830394 +0000
+@@ -314,7 +314,7 @@ $(eval DEP := $(patsubst %.o,%.d,$(OBJ))
+ 
+ $(OBJ): $(2) $(filter-out %.d,$(MAKEFILE_LIST)) | $$$$(@D)/
+ 	$$(s)echo "  AS      $$<"
+-	$$(q)$($(ARCH)-as) -x assembler-with-cpp $$(TF_CFLAGS_$(ARCH)) $$(ASFLAGS) $(call MAKE_DEP,$(DEP),$(OBJ)) -c $$< -o $$@
++	$$(q)$(CC) -x assembler-with-cpp $$(TF_CFLAGS_$(ARCH)) $$(ASFLAGS) $(call MAKE_DEP,$(DEP),$(OBJ)) -c $$< -o $$@
+ 
+ -include $(DEP)
+ 
+@@ -362,7 +362,7 @@ $(eval BL_ASFLAGS := $($(4)_ASFLAGS) $(P
+ 
+ $(OBJ): $(2) $(filter-out %.d,$(MAKEFILE_LIST)) | $$$$(@D)/
+ 	$$(s)echo "  AS      $$<"
+-	$$(q)$($(ARCH)-as) -x assembler-with-cpp $$(TF_CFLAGS_$(ARCH)) $$(ASFLAGS) $(BL_CPPFLAGS) $(BL_ASFLAGS) $(call MAKE_DEP,$(DEP),$(OBJ)) -c $$< -o $$@
++	$$(q)$(CC) -x assembler-with-cpp $$(TF_CFLAGS_$(ARCH)) $$(ASFLAGS) $(BL_CPPFLAGS) $(BL_ASFLAGS) $(call MAKE_DEP,$(DEP),$(OBJ)) -c $$< -o $$@
+ 
+ -include $(DEP)
+ 

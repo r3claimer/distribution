@@ -16,6 +16,9 @@ case ${DEVICE} in
   H700)
     PKG_VERSION="2.12.0"
   ;;
+  RK3588)
+    PKG_VERSION="2.13.0"
+  ;;
   *)
     PKG_VERSION="2.10.0"
     PKG_SHA256="696b8e53923aac4474532da7dd681f0bd044b329732facd65aeabea3e61adca9"

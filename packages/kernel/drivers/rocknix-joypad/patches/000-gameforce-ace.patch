@@ -1,0 +1,18 @@
+diff --git a/rocknix-joypad.c b/rocknix-joypad.c
+index 1025e75..13fab06 100644
+--- a/rocknix-joypad.c
++++ b/rocknix-joypad.c
+@@ -669,6 +669,13 @@ static int joypad_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
++static void joypad_remove(struct platform_device *pdev)
++{
++	struct joypad *joypad = platform_get_drvdata(pdev);
++
++	input_unregister_polled_device(joypad->poll_dev);
++}
++
+ /*----------------------------------------------------------------------------*/
+ static const struct of_device_id joypad_of_match[] = {
+ 	{ .compatible = "rocknix-joypad", },

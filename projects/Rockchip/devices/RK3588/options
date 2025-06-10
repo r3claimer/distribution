@@ -28,6 +28,8 @@
     KERNEL_TARGET="Image"
     BOOTLOADER="u-boot"
     PARTITION_TABLE="gpt"
+    UBOOT_FIRMWARE+=" atf"
+    ATF_PLATFORM="rk3588"
 
   # Define the CPU
     HW_CPU="Rockchip RK3588"
@@ -60,7 +62,7 @@
     EXTRA_CMDLINE="quiet console=ttyFIQ0 console=tty0 coherent_pool=2M fbcon=rotate:1"
 
   # build and install rocknix joypad driver (yes / no)
-    ROCKNIX_JOYPAD="no"
+    ROCKNIX_JOYPAD="yes"
 
   # build and install rocknix out-of-tree device trees and overlays (yes / no)
     ROCKNIX_DEVICE_TREE_OVERLAYS="no"
@@ -78,5 +80,3 @@
 
   # Some devices have internal storage.
     INSTALLER_SUPPORT="yes"
-
-    ENABLE_32BIT="false"
