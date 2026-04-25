@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2022-present Frank Hartung (supervisedthinking (@) gmail.com)
+# Copyright (C) 2023 JELOS (https://github.com/JustEnoughLinuxOS)
+# Copyright (C) 2026-present ROCKNIX (https://github.com/ROCKNIX)
+
+PKG_NAME="cemu-upstream"
+PKG_VERSION="6f6c1299e29fa6e1062ae283a035b4ef787cc397"
+PKG_LICENSE="GPLv3"
+PKG_SITE="https://github.com/cemu-project/Cemu"
+PKG_URL="${PKG_SITE}.git"
+PKG_LONGDESC="KDE Extra CMake Modules"
+PKG_DEPENDS_TARGET="toolchain libzip glslang glm curl rapidjson openssl boost libfmt pugixml libpng gtk3 wxwidgets SDL2 libsodium hidapi spirv-tools"
+PKG_TOOLCHAIN="cmake"
+
+configure_package() {
+  # Displayserver Support
+  if [ "${DISPLAYSERVER}" = "x11" ]; then
+    PKG_DEPENDS_TARGET+=" xwayland"
+  elif [ "${DISPLAYSERVER}" = "wl" ]; then
+    PKG_DEPENDS_TARGET+=" wayland"
+  fi
+
+  # OpenGL Support
+  if [ "${OPENGL_SUPPORT}" = "yes" ]; then
+    PKG_DEPENDS_TARGET+=" ${OPENGL}"
+  fi
+
+  # Vulkan Support
+  if [ "${VULKAN_SUPPORT}" = "yes" ]; then
+    PKG_DEPENDS_TARGET+=" ${VULKAN}"
+  fi
+}
+
+pre_configure_target() {
+  # Force build of cubeb submodule
+  sed -e '/find_package(cubeb)/d' -i ${PKG_BUILD}/CMakeLists.txt
+  # Fix glm linking
+  sed -e "s#glm::glm#glm#" -i ${PKG_BUILD}/src/{Common,input}/CMakeLists.txt
+
+  CXXFLAGS+=" -fpch-preprocess"
+  PKG_CMAKE_OPTS_TARGET=" -DCMAKE_CXX_FLAGS="-Wno-changes-meaning" \
+                          -DENABLE_VCPKG=OFF \
+                          -DENABLE_DISCORD_RPC=OFF \
+                          -DENABLE_SDL=ON \
+                          -DENABLE_CUBEB=ON \
+                          -DENABLE_WXWIDGETS=ON \
+                          -DCMAKE_BUILD_TYPE=Release \
+                          -DENABLE_FERAL_GAMEMODE=OFF"
+}
+
+makeinstall_target() {
+  # Copy binary, scripts & config files
+  mkdir -p ${INSTALL}/usr/bin
+    cp -v ${PKG_BUILD}/bin/Cemu_* ${INSTALL}/usr/bin/cemu
+    cp -v ${PKG_DIR}/scripts/*    ${INSTALL}/usr/bin/
+    chmod 0755 ${INSTALL}/usr/bin/*
+
+  mkdir -p ${INSTALL}/usr/config/Cemu
+    cp -rH ${PKG_DIR}/config/${DEVICE}/* ${INSTALL}/usr/config/Cemu
+
+  # Copy system files
+  mkdir -p ${INSTALL}/usr/share/Cemu
+    cp -PR ${PKG_BUILD}/bin/{gameProfiles,resources} ${INSTALL}/usr/share/Cemu
+}

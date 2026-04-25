@@ -1,0 +1,27 @@
+Submodule src/external/mbedtls contains modified content
+diff --git a/src/external/mbedtls/tests/include/test/macros.h b/src/external/mbedtls/tests/include/test/macros.h
+index 9b3fc9c809..c5e9f900a9 100644
+--- a/src/external/mbedtls/tests/include/test/macros.h
++++ b/src/external/mbedtls/tests/include/test/macros.h
+@@ -109,8 +109,8 @@
+         TEST_ASSERT( ( pointer ) == NULL );                       \
+         if( ( length ) != 0 )                                     \
+         {                                                         \
+-            ( pointer ) = mbedtls_calloc( sizeof( *( pointer ) ), \
+-                                          ( length ) );           \
++            ( pointer ) = mbedtls_calloc( ( length ),             \
++                                          sizeof( *( pointer ) ) ); \
+             TEST_ASSERT( ( pointer ) != NULL );                   \
+         }                                                         \
+     }                                                             \
+@@ -127,8 +127,8 @@
+         TEST_ASSERT( ( pointer ) == NULL );                       \
+         if( ( length ) != 0 )                                     \
+         {                                                         \
+-            ( pointer ) = mbedtls_calloc( sizeof( *( pointer ) ), \
+-                                          ( length ) );           \
++            ( pointer ) = mbedtls_calloc( ( length ),             \
++                                          sizeof( *( pointer ) ) ); \
+             TEST_ASSUME( ( pointer ) != NULL );                   \
+         }                                                         \
+     }                                                             \

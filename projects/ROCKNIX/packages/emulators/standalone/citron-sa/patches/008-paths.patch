@@ -1,0 +1,20 @@
+diff -rupbN citron.orig/src/common/fs/path_util.cpp citron/src/common/fs/path_util.cpp
+--- citron.orig/src/common/fs/path_util.cpp	2025-10-24 19:34:22.220942417 +0000
++++ citron/src/common/fs/path_util.cpp	2025-10-24 19:40:42.126335009 +0000
+@@ -121,12 +121,12 @@ public:
+         GenerateCitronPath(CitronPath::ConfigDir, citron_path_config);
+         GenerateCitronPath(CitronPath::CrashDumpsDir, citron_path / CRASH_DUMPS_DIR);
+         GenerateCitronPath(CitronPath::DumpDir, citron_path / DUMP_DIR);
+-        GenerateCitronPath(CitronPath::KeysDir, citron_path / KEYS_DIR);
++        GenerateCitronPath(CitronPath::KeysDir, "/storage/roms/bios/switch/keys");
+         GenerateCitronPath(CitronPath::LoadDir, citron_path / LOAD_DIR);
+-        GenerateCitronPath(CitronPath::LogDir, citron_path / LOG_DIR);
+-        GenerateCitronPath(CitronPath::NANDDir, citron_path / NAND_DIR);
++        GenerateCitronPath(CitronPath::LogDir, "/storage/.config/citron/log");
++        GenerateCitronPath(CitronPath::NANDDir, "/storage/roms/bios/switch/nand");
+         GenerateCitronPath(CitronPath::PlayTimeDir, citron_path / PLAY_TIME_DIR);
+-        GenerateCitronPath(CitronPath::ScreenshotsDir, citron_path / SCREENSHOTS_DIR);
++        GenerateCitronPath(CitronPath::ScreenshotsDir, "/storage/roms/screenshots");
+         GenerateCitronPath(CitronPath::SDMCDir, citron_path / SDMC_DIR);
+         GenerateCitronPath(CitronPath::ShaderDir, citron_path / SHADER_DIR);
+         GenerateCitronPath(CitronPath::TASDir, citron_path / TAS_DIR);

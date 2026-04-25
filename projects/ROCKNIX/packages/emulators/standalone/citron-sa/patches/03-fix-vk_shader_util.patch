@@ -1,0 +1,24 @@
+diff --git a/src/video_core/renderer_vulkan/vk_shader_util.cpp b/src/video_core/renderer_vulkan/vk_shader_util.cpp
+index c2d365411..2f1bcc9f6 100644
+--- a/src/video_core/renderer_vulkan/vk_shader_util.cpp
++++ b/src/video_core/renderer_vulkan/vk_shader_util.cpp
+@@ -242,7 +242,7 @@ void AsyncCompileShader(const Device& device, const std::string& shader_path,
+     }).detach();
+ }
+ 
+-ShaderManager::ShaderManager(const Device& device_) : device(device_) {
++ShaderManager::ShaderManager(const Device& in_device) : device(in_device) {
+     // Initialize command queue system
+     InitializeCommandQueue();
+ }
+diff --git a/src/video_core/vulkan_common/hybrid_memory.cpp b/src/video_core/vulkan_common/hybrid_memory.cpp
+index bb06fae98..2680f12ab 100644
+--- a/src/video_core/vulkan_common/hybrid_memory.cpp
++++ b/src/video_core/vulkan_common/hybrid_memory.cpp
+@@ -443,4 +443,4 @@ void HybridMemory::ResetDirtyTracking() {
+ #endif
+ }
+ 
+-} // namespace Vulkan
+\ No newline at end of file
++} // namespace Vulkan
